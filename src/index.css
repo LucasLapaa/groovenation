@@ -1,0 +1,21 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --- Personalização da Barra de Rolagem (Scrollbar) --- */
+::-webkit-scrollbar {
+  width: 8px; /* Largura da barra */
+}
+
+::-webkit-scrollbar-track {
+  background: #171717; /* Cor do fundo (neutral-900) */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #a855f7; /* Cor da barra (purple-500) */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #d946ef; /* Cor ao passar o mouse (fuchsia-500) */
+}
