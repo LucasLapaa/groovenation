@@ -49,7 +49,7 @@ const PrivacyView = () => {
             POLÍTICA DE <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">PRIVACIDADE</span>
           </motion.h1>
           <p className="text-gray-400 max-w-2xl mx-auto">Transparência total. Aqui explicamos como cuidamos dos seus dados enquanto você cuida do seu estilo.</p>
-          <p className="text-xs text-gray-500 mt-4 uppercase tracking-widest">Última atualização: Março 2026</p>
+          <p className="text-xs text-gray-500 mt-4 uppercase tracking-widest">Última atualização: Fevereiro 2026</p>
         </div>
 
         {/* Conteúdo */}
@@ -81,7 +81,7 @@ const PrivacyView = () => {
           <h3 className="text-white font-bold text-lg mb-2">Ficou com alguma dúvida?</h3>
           <p className="text-gray-400 mb-6 text-sm">Nosso time de Data Protection está à disposição.</p>
           <a href="mailto:privacy@groovenation.com" className="inline-flex items-center gap-2 text-purple-400 hover:text-purple-300 font-bold transition-colors">
-            <Mail size={18} /> privacy@groovenation.com
+            <Mail size={18} /> contato@groovenation.com.br
           </a>
         </div>
 
