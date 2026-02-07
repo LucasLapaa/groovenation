@@ -1,10 +1,139 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform, useMotionTemplate } from 'framer-motion';
 import emailjs from '@emailjs/browser';
-import { Menu, X, MessageCircle, Instagram, Facebook, Clock, ArrowUp, ShieldCheck, RefreshCw, Layers, Printer, Mail, CheckCircle, Loader2, Zap, Lock, ChevronDown, Terminal, Ruler, Ticket, Barcode } from 'lucide-react';
+import { Menu, X, MessageCircle, Instagram, Facebook, Clock, ArrowUp, ShieldCheck, RefreshCw, Layers, Printer, Mail, CheckCircle, Loader2, Zap, Lock, ChevronDown, Terminal, Ruler, Ticket, Barcode, Cookie, CreditCard, Truck } from 'lucide-react';
 
 // Importando a logo
 import logoGroove from './assets/groove.png';
+
+// --- OPÇÃO 1: BARRA DE ANÚNCIOS NO TOPO (TOP BAR) ---
+const TopAnnouncementBar = ({ show }) => {
+  const messages = [
+    { text: "FRETE GRÁTIS PARA TODO O BRASIL 🇧🇷", icon: <Truck size={14} /> },
+    { text: "PARCELE EM ATÉ 12X NO CARTÃO", icon: <CreditCard size={14} /> },
+    { text: "5% DE DESCONTO NO PIX", icon: <Zap size={14} /> },
+    { text: "PRIMEIRA TROCA GRÁTIS", icon: <RefreshCw size={14} /> }
+  ];
+  const [current, setCurrent] = useState(0);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrent((prev) => (prev + 1) % messages.length);
+    }, 3500);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className={`fixed top-0 left-0 w-full h-10 bg-purple-600 z-[60] flex items-center justify-center transition-transform duration-300 ${show ? 'translate-y-0' : '-translate-y-full'}`}>
+      <AnimatePresence mode='wait'>
+        <motion.div
+          key={current}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          className="flex items-center gap-2 text-white text-xs md:text-sm font-bold tracking-wider uppercase"
+        >
+          {messages[current].icon}
+          {messages[current].text}
+        </motion.div>
+      </AnimatePresence>
+    </div>
+  );
+};
+
+// --- OPÇÃO 2: BANNER DE COOKIES (LGPD) ---
+const CookieConsent = () => {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // Verifica se já aceitou antes
+    const consent = localStorage.getItem('groove_cookie_consent');
+    if (!consent) {
+      // Delay pequeno para não aparecer brutalmente na cara do usuário
+      setTimeout(() => setIsVisible(true), 2000);
+    }
+  }, []);
+
+  const handleAccept = () => {
+    localStorage.setItem('groove_cookie_consent', 'true');
+    setIsVisible(false);
+  };
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div 
+          initial={{ y: 100, opacity: 0 }}
+          animate={{ y: 0, opacity: 1 }}
+          exit={{ y: 100, opacity: 0 }}
+          className="fixed bottom-0 left-0 w-full z-[80] p-4"
+        >
+          <div className="max-w-7xl mx-auto bg-neutral-900/95 backdrop-blur-md border-t border-purple-500/30 p-6 rounded-t-2xl shadow-2xl md:flex md:items-center md:justify-between gap-6">
+            <div className="flex items-start gap-4 mb-4 md:mb-0">
+              <div className="bg-purple-500/20 p-3 rounded-full hidden md:block">
+                <Cookie className="text-purple-400" size={24} />
+              </div>
+              <div>
+                <h4 className="text-white font-bold mb-1">Nós respeitamos sua privacidade</h4>
+                <p className="text-gray-400 text-sm leading-relaxed">
+                  Utilizamos cookies para oferecer uma experiência melhor, analisar o tráfego do site e personalizar o conteúdo. Ao continuar navegando, você concorda com a nossa Política de Privacidade.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setIsVisible(false)} 
+                className="flex-1 md:flex-none px-6 py-3 text-sm font-bold text-gray-400 hover:text-white transition-colors"
+              >
+                Recusar
+              </button>
+              <button 
+                onClick={handleAccept}
+                className="flex-1 md:flex-none bg-purple-600 hover:bg-purple-500 text-white px-8 py-3 rounded-xl font-bold text-sm transition-all shadow-lg shadow-purple-900/20"
+              >
+                Aceitar e Fechar
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+// --- COMPONENTE LIVE HYPE COUNTER ---
+const LiveHypeCounter = () => {
+  const [viewers, setViewers] = useState(124); 
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const change = Math.floor(Math.random() * 9) - 3;
+      setViewers(prev => {
+        const newValue = prev + change;
+        return newValue < 80 ? 85 : newValue > 150 ? 145 : newValue;
+      });
+    }, 3000); 
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0, x: -20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 2 }}
+      className="fixed bottom-6 left-6 z-40 hidden md:flex items-center gap-3 bg-black/60 backdrop-blur-md border border-white/10 px-4 py-2 rounded-full shadow-lg"
+    >
+      <div className="relative flex items-center justify-center">
+        <span className="absolute w-3 h-3 bg-red-500 rounded-full animate-ping opacity-75"></span>
+        <span className="relative w-2 h-2 bg-red-500 rounded-full"></span>
+      </div>
+      <span className="text-xs font-mono text-gray-300">
+        <span className="font-bold text-white">{viewers}</span> pessoas online
+      </span>
+    </motion.div>
+  );
+};
 
 // --- COMPONENTE TICKET VIP ---
 const VipTicket = ({ email, onClose }) => {
@@ -63,7 +192,7 @@ const VipTicket = ({ email, onClose }) => {
   );
 };
 
-// --- COMPONENTE TIPOGRAFIA CINÉTICA (AJUSTADO) ---
+// --- COMPONENTE TIPOGRAFIA CINÉTICA ---
 const KineticTypography = () => {
   const { scrollYProgress } = useScroll();
   const x1 = useTransform(scrollYProgress, [0, 1], ["0%", "-25%"]); 
@@ -72,14 +201,12 @@ const KineticTypography = () => {
   return (
     <section className="py-20 bg-neutral-950 overflow-hidden relative border-y border-neutral-900 flex flex-col gap-4 select-none pointer-events-none">
        <motion.div style={{ x: x1 }} className="whitespace-nowrap">
-         {/* Tamanho reduzido para text-5xl (mobile) e text-8xl (desktop) */}
          <span className="text-5xl md:text-8xl leading-none font-black text-neutral-800/40 uppercase tracking-tighter">
            SOMOS A GROOVE SOMOS A GROOVE SOMOS A GROOVE
          </span>
        </motion.div>
 
        <motion.div style={{ x: x2 }} className="whitespace-nowrap">
-         {/* Tamanho reduzido para text-5xl (mobile) e text-8xl (desktop) */}
          <span className="text-5xl md:text-8xl leading-none font-black text-neutral-800/40 uppercase tracking-tighter">
            FUTURO DO STREETWEAR FUTURO DO STREETWEAR
          </span>
@@ -359,7 +486,7 @@ const HomeView = ({ handleGlitterMove, sparkles, sectionRef, dynamicBackground, 
         </div>
       </section>
       
-      {/* TIPOGRAFIA CINÉTICA (TRADUZIDA) */}
+      {/* TIPOGRAFIA CINÉTICA */}
       <KineticTypography />
 
       <motion.section id="colecoes" ref={sectionRef} className="py-32 relative overflow-hidden flex items-center justify-center" style={{ background: dynamicBackground, boxShadow: 'inset 0 0 100px rgba(0,0,0,0.8)' }}>
@@ -511,7 +638,7 @@ const App = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-purple-500 selection:text-white">
+    <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-purple-500 selection:text-white pt-10">
       
       {/* --- EASTER EGG MODAL --- */}
       <AnimatePresence>
@@ -522,6 +649,9 @@ const App = () => {
       <AnimatePresence>
         {isSizeGuideOpen && <SizeGuideModal onClose={() => setIsSizeGuideOpen(false)} />}
       </AnimatePresence>
+
+      {/* --- COOKIE CONSENT BANNER (OPÇÃO 2) --- */}
+      <CookieConsent />
 
       <AnimatePresence>
         {isVipModalOpen && (
@@ -560,15 +690,21 @@ const App = () => {
         )}
       </AnimatePresence>
 
-      <nav className={`fixed top-0 w-full z-50 bg-neutral-950/80 backdrop-blur-md border-b border-neutral-900 transition-transform duration-300 ${showNavbar ? 'translate-y-0' : '-translate-y-full'}`}>
+      {/* --- LIVE HYPE COUNTER --- */}
+      <LiveHypeCounter />
+
+      {/* --- TOP ANNOUNCEMENT BAR (OPÇÃO 1) --- */}
+      <TopAnnouncementBar show={showNavbar} />
+
+      <nav className={`fixed top-10 w-full z-50 bg-neutral-950/80 backdrop-blur-md border-b border-neutral-900 transition-transform duration-300 ${showNavbar ? 'translate-y-0' : '-translate-y-[140%]'}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-32">
+          <div className="flex justify-between items-center h-24">
             <motion.div 
               onClick={handleLogoClick} 
               initial={{ opacity: 0, scale: 0.5, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} 
               className="flex-shrink-0 cursor-pointer"
             >
-              <img src={logoGroove} alt="Groove" className="h-24 w-auto object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:drop-shadow-[0_0_25px_rgba(236,72,153,0.8)] transition-all duration-300" />
+              <img src={logoGroove} alt="Groove" className="h-20 w-auto object-contain drop-shadow-[0_0_15px_rgba(168,85,247,0.5)] hover:drop-shadow-[0_0_25px_rgba(236,72,153,0.8)] transition-all duration-300" />
             </motion.div>
 
             <div className="hidden md:flex space-x-8 items-center">
