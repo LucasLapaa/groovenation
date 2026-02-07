@@ -1,51 +1,153 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform, useMotionTemplate } from 'framer-motion';
-// IMPORTANTE: Importar o EmailJS
 import emailjs from '@emailjs/browser';
-import { Menu, X, MessageCircle, Instagram, Facebook, Clock, ArrowUp, ShieldCheck, RefreshCw, Layers, Printer, Mail, CheckCircle, Loader2, Zap, Lock, ChevronDown, Terminal } from 'lucide-react';
+import { Menu, X, MessageCircle, Instagram, Facebook, Clock, ArrowUp, ShieldCheck, RefreshCw, Layers, Printer, Mail, CheckCircle, Loader2, Zap, Lock, ChevronDown, Terminal, Ruler, Ticket, Barcode } from 'lucide-react';
 
 // Importando a logo
 import logoGroove from './assets/groove.png';
 
-// --- COMPONENTE EASTER EGG (SECRET MODAL) ---
-const SecretModal = ({ onClose }) => (
+// --- COMPONENTE TICKET VIP ---
+const VipTicket = ({ email, onClose }) => {
+  const memberId = '#' + Math.abs(email.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0)).toString().slice(0, 4).padEnd(4, '0');
+  
+  return (
+    <motion.div 
+      initial={{ scale: 0.8, opacity: 0, rotateX: -90 }}
+      animate={{ scale: 1, opacity: 1, rotateX: 0 }}
+      transition={{ type: "spring", stiffness: 200, damping: 20 }}
+      className="relative w-full max-w-sm bg-neutral-900 border-2 border-dashed border-purple-500/50 rounded-3xl p-6 overflow-hidden mx-auto my-6"
+    >
+      <div className="absolute -left-3 top-1/2 w-6 h-6 bg-black rounded-full"></div>
+      <div className="absolute -right-3 top-1/2 w-6 h-6 bg-black rounded-full"></div>
+
+      <div className="flex justify-between items-start mb-6">
+        <div>
+          <span className="inline-block px-3 py-1 bg-purple-600 text-white text-[10px] font-bold tracking-widest uppercase rounded-full mb-2">Acesso Confirmado</span>
+          <h3 className="text-2xl font-black text-white italic">GROOVE VIP</h3>
+        </div>
+        <Ticket className="text-purple-500 opacity-50" size={40} />
+      </div>
+
+      <div className="space-y-4 border-t border-dashed border-white/10 pt-4">
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider">Membro</p>
+          <p className="text-white font-mono truncate">{email}</p>
+        </div>
+        <div className="flex justify-between">
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-wider">ID</p>
+            <p className="text-purple-400 font-black font-mono text-xl">{memberId}</p>
+          </div>
+          <div>
+            <p className="text-xs text-gray-500 uppercase tracking-wider text-right">Data</p>
+            <p className="text-white font-mono text-right">20.03.26</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-6 pt-4 border-t border-white/10 opacity-50 flex justify-center">
+        <Barcode className="w-full h-12 text-white" />
+      </div>
+
+      <div className="absolute top-0 right-0 w-32 h-32 bg-purple-500/10 blur-[50px] pointer-events-none"></div>
+      
+      <p className="text-center text-[10px] text-gray-500 mt-4">Tire um print e compartilhe nos stories.</p>
+      
+      <button 
+        onClick={onClose}
+        className="mt-4 w-full bg-white/10 hover:bg-white/20 text-white text-xs font-bold py-3 rounded-xl transition-colors uppercase tracking-widest"
+      >
+        Fechar Ticket
+      </button>
+    </motion.div>
+  );
+};
+
+// --- COMPONENTE TIPOGRAFIA CINÉTICA (AJUSTADO) ---
+const KineticTypography = () => {
+  const { scrollYProgress } = useScroll();
+  const x1 = useTransform(scrollYProgress, [0, 1], ["0%", "-25%"]); 
+  const x2 = useTransform(scrollYProgress, [0, 1], ["-25%", "0%"]); 
+
+  return (
+    <section className="py-20 bg-neutral-950 overflow-hidden relative border-y border-neutral-900 flex flex-col gap-4 select-none pointer-events-none">
+       <motion.div style={{ x: x1 }} className="whitespace-nowrap">
+         {/* Tamanho reduzido para text-5xl (mobile) e text-8xl (desktop) */}
+         <span className="text-5xl md:text-8xl leading-none font-black text-neutral-800/40 uppercase tracking-tighter">
+           SOMOS A GROOVE SOMOS A GROOVE SOMOS A GROOVE
+         </span>
+       </motion.div>
+
+       <motion.div style={{ x: x2 }} className="whitespace-nowrap">
+         {/* Tamanho reduzido para text-5xl (mobile) e text-8xl (desktop) */}
+         <span className="text-5xl md:text-8xl leading-none font-black text-neutral-800/40 uppercase tracking-tighter">
+           FUTURO DO STREETWEAR FUTURO DO STREETWEAR
+         </span>
+       </motion.div>
+    </section>
+  );
+};
+
+// --- COMPONENTE TABELA DE MEDIDAS ---
+const SizeGuideModal = ({ onClose }) => (
   <motion.div 
     initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-    className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-md font-mono p-4"
+    onClick={onClose}
+    className="fixed inset-0 z-[150] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4"
   >
     <motion.div 
-      initial={{ scale: 0.8, rotateX: 90 }} animate={{ scale: 1, rotateX: 0 }}
-      className="max-w-md w-full bg-neutral-950 border-2 border-green-500 rounded-xl p-8 relative overflow-hidden shadow-[0_0_50px_rgba(34,197,94,0.3)]"
+      initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
+      onClick={(e) => e.stopPropagation()} 
+      className="bg-neutral-900 border border-neutral-700 rounded-3xl p-6 md:p-10 max-w-2xl w-full relative shadow-[0_0_50px_rgba(168,85,247,0.15)]"
     >
-      {/* Efeito de Scanline (Linhas de TV antiga) */}
-      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-0 pointer-events-none background-size-[100%_2px,3px_100%]"></div>
-      
-      <div className="relative z-10 text-center">
-        <div className="flex justify-center mb-4">
-          <Terminal className="text-green-500 w-16 h-16 animate-pulse" />
+      <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-white"><X size={24} /></button>
+      <div className="text-center mb-8">
+        <h3 className="text-2xl font-bold text-white flex items-center justify-center gap-2"><Ruler className="text-purple-500" /> GUIA DE MEDIDAS</h3>
+        <p className="text-gray-400 text-sm mt-2">Modelagem <span className="text-purple-400 font-bold">OVERSIZED</span>. Compare com uma peça sua.</p>
+      </div>
+      <div className="grid md:grid-cols-2 gap-8 items-center">
+        <div className="relative h-64 bg-neutral-800/50 rounded-xl flex items-center justify-center border border-neutral-700">
+           <div className="relative w-40 h-48 border-2 border-gray-600 rounded-t-3xl rounded-b-lg">
+              <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-16 h-8 border-b-2 border-gray-600 rounded-b-full bg-neutral-900"></div>
+              <div className="absolute -right-4 top-0 bottom-0 border-r-2 border-dashed border-purple-500 flex items-center"><span className="rotate-90 text-xs text-purple-400 font-bold whitespace-nowrap -mr-8">ALTURA</span></div>
+              <div className="absolute bottom-4 left-0 right-0 border-b-2 border-dashed border-purple-500 flex justify-center"><span className="text-xs text-purple-400 font-bold -mb-5">LARGURA</span></div>
+           </div>
         </div>
-        
-        <h2 className="text-3xl md:text-4xl font-black text-green-500 mb-2 tracking-tighter">
-          SYSTEM UNLOCKED
-        </h2>
-        <p className="text-green-400/80 text-sm mb-8 typing-effect">
-          Você encontrou a área secreta da Groove.
-        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-gray-300">
+            <thead className="text-xs text-gray-500 uppercase bg-neutral-950/50">
+              <tr><th className="px-4 py-3 rounded-l-lg">Tam</th><th className="px-4 py-3">Largura</th><th className="px-4 py-3 rounded-r-lg">Altura</th></tr>
+            </thead>
+            <tbody className="divide-y divide-neutral-800">
+              <tr className="hover:bg-purple-500/10 transition-colors"><td className="px-4 py-3 font-bold text-white">P</td><td className="px-4 py-3">55 cm</td><td className="px-4 py-3">75 cm</td></tr>
+              <tr className="hover:bg-purple-500/10 transition-colors"><td className="px-4 py-3 font-bold text-white">M</td><td className="px-4 py-3">58 cm</td><td className="px-4 py-3">77 cm</td></tr>
+              <tr className="hover:bg-purple-500/10 transition-colors"><td className="px-4 py-3 font-bold text-white">G</td><td className="px-4 py-3">61 cm</td><td className="px-4 py-3">79 cm</td></tr>
+              <tr className="hover:bg-purple-500/10 transition-colors"><td className="px-4 py-3 font-bold text-white">GG</td><td className="px-4 py-3">64 cm</td><td className="px-4 py-3">81 cm</td></tr>
+              <tr className="hover:bg-purple-500/10 transition-colors"><td className="px-4 py-3 font-bold text-white">XG</td><td className="px-4 py-3">67 cm</td><td className="px-4 py-3">83 cm</td></tr>
+            </tbody>
+          </table>
+          <p className="text-[10px] text-gray-500 mt-4 text-center">*Margem de variação de +/- 2cm.</p>
+        </div>
+      </div>
+    </motion.div>
+  </motion.div>
+);
 
+// --- COMPONENTE EASTER EGG ---
+const SecretModal = ({ onClose }) => (
+  <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[200] flex items-center justify-center bg-black/95 backdrop-blur-md font-mono p-4">
+    <motion.div initial={{ scale: 0.8, rotateX: 90 }} animate={{ scale: 1, rotateX: 0 }} className="max-w-md w-full bg-neutral-950 border-2 border-green-500 rounded-xl p-8 relative overflow-hidden shadow-[0_0_50px_rgba(34,197,94,0.3)]">
+      <div className="absolute inset-0 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-0 pointer-events-none background-size-[100%_2px,3px_100%]"></div>
+      <div className="relative z-10 text-center">
+        <div className="flex justify-center mb-4"><Terminal className="text-green-500 w-16 h-16 animate-pulse" /></div>
+        <h2 className="text-3xl md:text-4xl font-black text-green-500 mb-2 tracking-tighter">SYSTEM UNLOCKED</h2>
+        <p className="text-green-400/80 text-sm mb-8 typing-effect">Você encontrou a área secreta da Groove.</p>
         <div className="bg-green-900/10 border border-green-500/30 p-6 rounded-lg mb-8 dashed-border">
           <p className="text-green-600 text-xs uppercase tracking-[0.2em] mb-2">Cupom de Fundador</p>
-          <p className="text-3xl font-bold text-white tracking-widest select-all cursor-text">
-            SECRETGROOVE
-          </p>
+          <p className="text-3xl font-bold text-white tracking-widest select-all cursor-text">SECRETGROOVE</p>
           <p className="text-[10px] text-green-500/60 mt-2">15% OFF em toda a loja</p>
         </div>
-
-        <button 
-          onClick={onClose}
-          className="w-full bg-green-600 hover:bg-green-500 text-black font-bold py-4 rounded transition-all hover:shadow-[0_0_20px_rgba(34,197,94,0.6)]"
-        >
-          RESGATAR E FECHAR
-        </button>
+        <button onClick={onClose} className="w-full bg-green-600 hover:bg-green-500 text-black font-bold py-4 rounded transition-all hover:shadow-[0_0_20px_rgba(34,197,94,0.6)]">RESGATAR E FECHAR</button>
       </div>
     </motion.div>
   </motion.div>
@@ -57,11 +159,7 @@ const Marquee = () => {
     <div className="w-full overflow-hidden bg-neutral-900 border-y border-purple-500/20 py-4 relative z-20">
       <div className="absolute top-0 left-0 w-32 h-full bg-gradient-to-r from-neutral-950 to-transparent z-10"></div>
       <div className="absolute top-0 right-0 w-32 h-full bg-gradient-to-l from-neutral-950 to-transparent z-10"></div>
-      <motion.div
-        className="flex whitespace-nowrap"
-        animate={{ x: ["0%", "-50%"] }}
-        transition={{ repeat: Infinity, duration: 20, ease: "linear" }}
-      >
+      <motion.div className="flex whitespace-nowrap" animate={{ x: ["0%", "-50%"] }} transition={{ repeat: Infinity, duration: 20, ease: "linear" }}>
         {[...Array(10)].map((_, i) => (
           <div key={i} className="flex items-center">
             <span className="text-xl md:text-3xl font-black italic tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-white to-gray-600 uppercase mx-8">GROOVE NATION</span>
@@ -83,28 +181,13 @@ const Marquee = () => {
 const CountdownTimer = () => {
   const targetDate = new Date(2026, 2, 20).getTime(); 
   const [timeLeft, setTimeLeft] = useState(calculateTimeLeft());
-
   function calculateTimeLeft() {
     const now = new Date().getTime();
     const difference = targetDate - now;
-    if (difference > 0) {
-      return {
-        dias: Math.floor(difference / (1000 * 60 * 60 * 24)),
-        horas: Math.floor((difference / (1000 * 60 * 60)) % 24),
-        min: Math.floor((difference / 1000 / 60) % 60),
-        seg: Math.floor((difference / 1000) % 60),
-      };
-    }
+    if (difference > 0) return { dias: Math.floor(difference / (1000 * 60 * 60 * 24)), horas: Math.floor((difference / (1000 * 60 * 60)) % 24), min: Math.floor((difference / 1000 / 60) % 60), seg: Math.floor((difference / 1000) % 60) };
     return { dias: 0, horas: 0, min: 0, seg: 0 };
   }
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setTimeLeft(calculateTimeLeft());
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
-
+  useEffect(() => { const timer = setInterval(() => { setTimeLeft(calculateTimeLeft()); }, 1000); return () => clearInterval(timer); }, []);
   const TimeBox = ({ value, label }) => (
     <div className="flex flex-col items-center mx-2">
       <div className="w-20 h-24 md:w-24 md:h-32 bg-black/40 backdrop-blur-md border border-purple-500/30 rounded-xl flex items-center justify-center relative overflow-hidden shadow-[0_0_20px_rgba(168,85,247,0.15)]">
@@ -114,7 +197,6 @@ const CountdownTimer = () => {
       <span className="text-xs md:text-sm font-bold text-gray-400 mt-3 tracking-[0.2em] uppercase">{label}</span>
     </div>
   );
-
   return (
     <div className="flex flex-wrap justify-center mt-10 mb-12">
       <TimeBox value={timeLeft.dias} label="Dias" />
@@ -126,13 +208,13 @@ const CountdownTimer = () => {
 };
 
 // --- COMPONENTE FAQ ---
-const FAQ = () => {
+const FAQ = ({ onOpenSizeGuide }) => {
   const [activeIndex, setActiveIndex] = useState(null);
   const questions = [
     { question: "Quando será o lançamento oficial?", answer: "O drop oficial da coleção Groove 2026 acontecerá no dia 20 de Março. Cadastre-se na Lista VIP para receber o link de compra 1 hora antes de todo mundo." },
     { question: "Quais são as formas de pagamento?", answer: "Aceitamos PIX (com desconto especial), Cartão de Crédito em até 12x e Boleto Bancário. Todas as transações são criptografadas e seguras." },
     { question: "Vocês enviam para todo o Brasil?", answer: "Sim! Enviamos para todos os estados do Brasil via Correios ou Transportadoras parceiras, com código de rastreio enviado direto no seu e-mail." },
-    { question: "Como sei qual é o meu tamanho?", answer: "Nossa modelagem é Oversized (mais larga). Em cada página de produto teremos uma tabela de medidas detalhada. Na dúvida, chame nosso suporte no WhatsApp!" },
+    { question: "Como sei qual é o meu tamanho?", answer: "Nossa modelagem é Oversized. Recomendamos comparar as medidas com uma peça que você já tem. Clique no botão 'Guia de Medidas' acima para ver a tabela detalhada." },
     { question: "Posso trocar se não servir?", answer: "Com certeza. A primeira troca é por nossa conta. Você tem até 7 dias após o recebimento para solicitar a troca ou devolução sem burocracia." }
   ];
 
@@ -141,7 +223,11 @@ const FAQ = () => {
       <div className="max-w-3xl mx-auto px-4">
         <div className="text-center mb-16">
           <h2 className="text-3xl md:text-4xl font-bold text-white mb-4">DÚVIDAS FREQUENTES</h2>
-          <p className="text-gray-400">Tudo o que você precisa saber antes de entrar no modo Groove.</p>
+          <p className="text-gray-400 mb-8">Tudo o que você precisa saber antes de entrar no modo Groove.</p>
+          <button onClick={onOpenSizeGuide} className="flex items-center justify-center gap-2 mx-auto bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-3 rounded-xl border border-neutral-700 hover:border-purple-500 transition-all group">
+            <Ruler size={20} className="text-purple-500 group-hover:scale-110 transition-transform" />
+            Ver Guia de Medidas
+          </button>
         </div>
         <div className="space-y-4">
           {questions.map((item, index) => (
@@ -172,7 +258,6 @@ const SpoilersView = () => {
     { id: 2, name: "Urban Hoodie V2", img: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=2000&auto=format&fit=crop" },
     { id: 3, name: "Night Vision Tee", img: "https://images.unsplash.com/photo-1576566588028-4147f3842f27?q=80&w=2000&auto=format&fit=crop" },
   ];
-
   return (
     <div className="pt-40 pb-20 min-h-screen bg-neutral-950 px-4">
       <div className="max-w-7xl mx-auto">
@@ -203,7 +288,7 @@ const SpoilersView = () => {
 };
 
 // --- COMPONENTE HOME VIEW ---
-const HomeView = ({ handleGlitterMove, sparkles, sectionRef, dynamicBackground, onOpenVip }) => {
+const HomeView = ({ handleGlitterMove, sparkles, sectionRef, dynamicBackground, onOpenVip, onOpenSizeGuide }) => {
   const fadeInUp = { hidden: { opacity: 0, y: 60 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6, ease: "easeOut" } } };
   const staggerContainer = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.2 } } };
 
@@ -218,7 +303,12 @@ const HomeView = ({ handleGlitterMove, sparkles, sectionRef, dynamicBackground, 
         </div>
         <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="relative z-10 text-center px-4 max-w-4xl mx-auto">
           <motion.span variants={fadeInUp} className="inline-block py-1 px-4 rounded-full bg-purple-500/10 text-purple-300 text-xs font-bold tracking-[0.2em] mb-6 border border-purple-500/30 uppercase shadow-[0_0_20px_rgba(168,85,247,0.2)]">Coleção Groove 2026</motion.span>
-          <motion.h1 variants={fadeInUp} className="text-5xl md:text-7xl lg:text-9xl font-black tracking-tighter mb-6 leading-[0.9] drop-shadow-2xl">SUA <br/><span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-300 to-white animate-pulse">VIBE.</span></motion.h1>
+          
+          <motion.h1 variants={fadeInUp} className="text-5xl md:text-7xl lg:text-9xl font-black tracking-tighter mb-6 leading-[0.9] drop-shadow-2xl">
+            SUA <br/>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-fuchsia-300 to-white animate-pulse">VIBE.</span>
+          </motion.h1>
+          
           <motion.p variants={fadeInUp} className="text-lg md:text-xl text-gray-300 mb-10 max-w-2xl mx-auto font-light leading-relaxed text-shadow-sm">Não vestimos corpos, vestimos atitude. Descubra o streetwear que acompanha o seu ritmo.</motion.p>
         </motion.div>
       </section>
@@ -268,19 +358,28 @@ const HomeView = ({ handleGlitterMove, sparkles, sectionRef, dynamicBackground, 
           </div>
         </div>
       </section>
+      
+      {/* TIPOGRAFIA CINÉTICA (TRADUZIDA) */}
+      <KineticTypography />
+
       <motion.section id="colecoes" ref={sectionRef} className="py-32 relative overflow-hidden flex items-center justify-center" style={{ background: dynamicBackground, boxShadow: 'inset 0 0 100px rgba(0,0,0,0.8)' }}>
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay"></div>
         <div className="max-w-4xl mx-auto px-4 text-center relative z-10">
           <motion.div initial={{ opacity: 0, scale: 0.95 }} whileInView={{ opacity: 1, scale: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="bg-black/60 backdrop-blur-xl border border-white/10 rounded-3xl p-10 shadow-2xl relative overflow-hidden">
             <div className="flex justify-center mb-6"><div className="p-4 bg-white/5 rounded-full animate-pulse border border-white/10"><Clock className="text-white w-12 h-12" /></div></div>
-            <h2 className="text-4xl md:text-6xl font-black mb-4 tracking-tighter text-white">LANÇAMENTO <br /><span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">IMINENTE</span></h2>
+            
+            <h2 className="text-4xl md:text-6xl font-black mb-4 tracking-tighter text-white">
+              LANÇAMENTO <br />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">IMINENTE</span>
+            </h2>
+
             <p className="text-lg text-gray-300 mb-8 max-w-xl mx-auto leading-relaxed">Estamos nos bastidores preparando uma coleção que une o estilo <span className="font-bold text-white">minimalista</span> ao seu dia a dia <span className="font-bold text-white">intenso</span>.</p>
             <CountdownTimer />
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }} className="inline-block"><div onClick={onOpenVip} className="px-8 py-4 bg-white text-black rounded-full font-bold text-sm md:text-base tracking-widest uppercase hover:bg-gray-200 transition-colors shadow-lg shadow-purple-900/50 cursor-pointer">Aguarde. Vale a pena.</div></motion.div>
           </motion.div>
         </div>
       </motion.section>
-      <FAQ />
+      <FAQ onOpenSizeGuide={onOpenSizeGuide} />
       <section id="contato" onMouseMove={handleGlitterMove} className="py-32 relative overflow-hidden flex items-center justify-center group">
         <div className="absolute inset-0 z-20 pointer-events-none overflow-hidden">
           <AnimatePresence>
@@ -322,6 +421,7 @@ const App = () => {
   const [lastScrollY, setLastScrollY] = useState(0);
   const [showBackToTop, setShowBackToTop] = useState(false);
   const [isVipModalOpen, setIsVipModalOpen] = useState(false);
+  const [isSizeGuideOpen, setIsSizeGuideOpen] = useState(false);
   const [vipEmail, setVipEmail] = useState("");
   const [vipStatus, setVipStatus] = useState("idle"); 
   const [sparkles, setSparkles] = useState([]);
@@ -330,7 +430,6 @@ const App = () => {
   const [logoClicks, setLogoClicks] = useState(0);
   const [isSecretOpen, setIsSecretOpen] = useState(false);
 
-  // Reset clicks se ficar 1s sem clicar
   useEffect(() => {
     let timer;
     if (logoClicks > 0) {
@@ -346,7 +445,7 @@ const App = () => {
 
   const handleLogoClick = () => {
     setLogoClicks(prev => prev + 1);
-    handleNavClick('home'); // Também volta pra home
+    handleNavClick('home'); 
   };
 
   useEffect(() => {
@@ -419,6 +518,11 @@ const App = () => {
         {isSecretOpen && <SecretModal onClose={() => setIsSecretOpen(false)} />}
       </AnimatePresence>
 
+      {/* --- SIZE GUIDE MODAL --- */}
+      <AnimatePresence>
+        {isSizeGuideOpen && <SizeGuideModal onClose={() => setIsSizeGuideOpen(false)} />}
+      </AnimatePresence>
+
       <AnimatePresence>
         {isVipModalOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center px-4">
@@ -427,13 +531,10 @@ const App = () => {
               <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/20 blur-[50px] rounded-full pointer-events-none"></div>
               <div className="absolute bottom-0 left-0 w-32 h-32 bg-fuchsia-600/20 blur-[50px] rounded-full pointer-events-none"></div>
               <button onClick={closeVipModal} className="absolute top-4 right-4 text-gray-400 hover:text-white transition-colors"><X size={24} /></button>
+              
+              {/* LÓGICA DO TICKET VIP */}
               {vipStatus === "success" ? (
-                <div className="text-center py-8">
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6 text-green-500"><CheckCircle size={40} /></motion.div>
-                  <h3 className="text-2xl font-bold mb-2">E-mail enviado!</h3>
-                  <p className="text-gray-300">Confira sua caixa de entrada em <span className="text-purple-400">{vipEmail}</span>.</p>
-                  <button onClick={closeVipModal} className="mt-8 bg-neutral-800 hover:bg-neutral-700 text-white px-6 py-2 rounded-xl font-bold transition-colors">Fechar</button>
-                </div>
+                <VipTicket email={vipEmail} onClose={closeVipModal} />
               ) : vipStatus === "error" ? (
                  <div className="text-center py-8">
                   <h3 className="text-2xl font-bold mb-2 text-red-500">Ops! Algo deu errado.</h3>
@@ -463,7 +564,7 @@ const App = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-32">
             <motion.div 
-              onClick={handleLogoClick} // AQUI ESTÁ O GATILHO DO EASTER EGG
+              onClick={handleLogoClick} 
               initial={{ opacity: 0, scale: 0.5, y: -20 }} animate={{ opacity: 1, scale: 1, y: 0 }} transition={{ type: "spring", stiffness: 260, damping: 20 }} 
               className="flex-shrink-0 cursor-pointer"
             >
@@ -510,6 +611,7 @@ const App = () => {
           sectionRef={sectionRef} 
           dynamicBackground={dynamicBackground} 
           onOpenVip={() => setIsVipModalOpen(true)}
+          onOpenSizeGuide={() => setIsSizeGuideOpen(true)}
         />
       ) : (
         <SpoilersView />
