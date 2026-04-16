@@ -7,7 +7,7 @@ const MaintenanceView = () => {
   return (
     <div className="h-[100dvh] w-full bg-black flex flex-col items-center justify-between relative overflow-hidden font-sans">
       
-      {/* --- CAMADA 1: TEXTURA DE RUÍDO SUTIL (Ar de fotografia crua) --- */}
+      {/* --- CAMADA 1: TEXTURA DE RUÍDO SUTIL --- */}
       <div 
         className="absolute inset-0 z-0 opacity-[0.03] pointer-events-none mix-blend-screen" 
         style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=%220 0 200 200%22 xmlns=%22http://www.w3.org/2000/svg%22%3E%3Cfilter id=%22noiseFilter%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%223%22 stitchTiles=%22stitch%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23noiseFilter)%22/%3E%3C/svg%3E")' }}
@@ -30,7 +30,7 @@ const MaintenanceView = () => {
         <motion.div
           initial={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
           animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
-          transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }} // Curva de animação ultra suave
+          transition={{ duration: 2, ease: [0.16, 1, 0.3, 1] }} 
           className="mb-12 md:mb-16"
         >
           <img 
@@ -60,8 +60,9 @@ const MaintenanceView = () => {
         </motion.div>
       </div>
 
-      {/* --- RODAPÉ E BOTÃO MINIMALISTA --- */}
-      <div className="w-full flex-1 flex flex-col items-center justify-end pb-10 z-10 px-6">
+      {/* --- RODAPÉ E BOTÃO MINIMALISTA (AJUSTADO MAIS PARA BAIXO) --- */}
+      {/* pb-6 em vez de pb-10 deixa ele mais próximo do limite inferior da tela */}
+      <div className="w-full flex-1 flex flex-col items-center justify-end pb-6 z-10 px-6">
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -73,7 +74,6 @@ const MaintenanceView = () => {
             rel="noopener noreferrer"
             className="group relative flex items-center justify-center px-10 py-4 border border-neutral-800 hover:border-purple-500 transition-colors duration-700 overflow-hidden"
           >
-            {/* Preenchimento de cor que sobe no hover */}
             <div className="absolute inset-0 bg-purple-600 translate-y-[101%] group-hover:translate-y-0 transition-transform duration-500 ease-[0.16,1,0.3,1]" />
             
             <span className="relative z-10 text-white text-[10px] md:text-xs font-bold uppercase tracking-[0.3em] group-hover:tracking-[0.4em] transition-all duration-500">
@@ -82,12 +82,12 @@ const MaintenanceView = () => {
           </a>
         </motion.div>
 
-        {/* Linha de assinatura da marca */}
+        {/* Linha de assinatura da marca (margem mt-6 em vez de mt-12 para não empurrar o botão muito pra cima) */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ delay: 2, duration: 1.5 }}
-          className="mt-12 flex items-center gap-4 md:gap-6"
+          className="mt-6 flex items-center gap-4 md:gap-6"
         >
           <span className="h-[1px] w-6 md:w-12 bg-neutral-800" />
           <span className="text-neutral-600 text-[8px] md:text-[10px] uppercase tracking-[0.5em] font-black">
