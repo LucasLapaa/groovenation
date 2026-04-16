@@ -1,0 +1,133 @@
+.login-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  width: 100vw;
+  background-color: #000000;
+  font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  position: relative;
+}
+
+.login-back-btn {
+  position: absolute;
+  top: 30px;
+  left: 30px;
+  background: none;
+  border: none;
+  color: #666;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  transition: color 0.3s;
+}
+
+.login-back-btn:hover {
+  color: #fff;
+}
+
+.login-box {
+  background-color: #050505;
+  border: 1px solid #1a1a1a;
+  padding: 50px 40px;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9);
+  animation: fadeIn 0.5s ease-out;
+}
+
+.login-logo {
+  height: 45px;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 0 5px rgba(255,255,255,0.1));
+}
+
+.login-title {
+  color: #fff;
+  text-transform: uppercase;
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: 2px;
+  margin-bottom: 5px;
+}
+
+.login-subtitle {
+  color: #666;
+  font-size: 0.85rem;
+  margin-bottom: 30px;
+}
+
+.login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  text-align: left;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  color: #888;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.input-group input {
+  background-color: #0a0a0a;
+  border: 1px solid #222;
+  color: #fff;
+  padding: 14px 15px;
+  border-radius: 4px;
+  font-size: 1rem;
+  transition: border-color 0.3s, box-shadow 0.3s;
+  outline: none;
+}
+
+.input-group input:focus {
+  border-color: #555;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.05);
+}
+
+.error-message {
+  background-color: rgba(255, 50, 50, 0.1);
+  color: #ff4444;
+  border: 1px solid rgba(255, 50, 50, 0.3);
+  padding: 12px;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.login-btn {
+  background-color: #fff;
+  color: #000;
+  border: none;
+  padding: 15px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin-top: 10px;
+  transition: transform 0.2s, background-color 0.2s;
+}
+
+.login-btn:hover {
+  background-color: #e0e0e0;
+  transform: translateY(-2px);
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
