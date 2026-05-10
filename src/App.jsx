@@ -36,11 +36,7 @@ const functions = getFunctions(app);
 // BANCO DE PRODUTOS PADRÃO (Para vitrine)
 // ==========================================
 const defaultProducts = [
-  { id: 'GN-P01', name: "T-Shirt Oversized Iron", price: 139.90, stock: 150, img: "https://images.unsplash.com/photo-1583743814966-8936f5b7be1a?q=80&w=1974&auto=format&fit=crop", tag: "NEW DROP" }, 
-  { id: 'GN-P02', name: "Moletom Heavyweight", price: 289.90, stock: 45, img: "https://images.unsplash.com/photo-1556821840-3a63f95609a7?q=80&w=1974&auto=format&fit=crop", tag: "BEST SELLER" }, 
-  { id: 'GN-P03', name: "Bermuda Tech Sweat", price: 119.90, stock: 20, img: "https://images.unsplash.com/photo-1611312449408-fcece27cdbb1?q=80&w=1969&auto=format&fit=crop", tag: "" },
-  { id: 'GN-P04', name: "Regata Ribana Old School", price: 89.90, stock: 0, img: "https://images.unsplash.com/photo-1507314961636-a128cc160537?q=80&w=1974&auto=format&fit=crop", tag: "SOLD OUT" },
-];
+  ];
 
 // ==========================================
 // COMPONENTE: FORMULÁRIO DO STRIPE (INTERNO)
