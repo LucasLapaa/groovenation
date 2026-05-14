@@ -1,16 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Users, Tag, Ticket, Settings, LogOut, Plus, Edit2, Trash2, X, AlertCircle } from 'lucide-react';
+import { collection, getDocs, query, orderBy } from 'firebase/firestore';
+import { db } from './firebase'; // Certifique-se de que o caminho aponta para o seu firebase.js
 import './AdminDashboard.css';
 import logoImg from './assets/groove.png';
 
 function AdminDashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState('pedidos');
 
+  // Estado para armazenar os pedidos REAIS do banco de dados
   const [orders, setOrders] = useState([]);
+  const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+
   const [products, setProducts] = useState([]);
   const [coupons, setCoupons] = useState([]);
   
-  // NOVO: Estado para as configurações da loja
   const [settings, setSettings] = useState({
     adminEmail: 'contato@groovenation.com.br',
     storeName: 'Groove Nation',
@@ -23,9 +27,31 @@ function AdminDashboard({ onLogout }) {
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState(null);
 
+  // 1. useEffect PARA BUSCAR OS PEDIDOS DO FIREBASE
   useEffect(() => {
-    setOrders(JSON.parse(localStorage.getItem('groove_orders')) || []);
-    
+    const fetchOrders = async () => {
+      try {
+        const q = query(collection(db, "pedidos"), orderBy("data", "desc"));
+        const querySnapshot = await getDocs(q);
+        
+        const listaPedidos = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        
+        setOrders(listaPedidos);
+      } catch (error) {
+        console.error("Erro ao buscar os pedidos do Firebase:", error);
+      } finally {
+        setIsLoadingOrders(false);
+      }
+    };
+
+    fetchOrders();
+  }, []); // Executa apenas uma vez ao abrir o painel
+
+  // 2. useEffect PARA OS OUTROS DADOS LOCAIS (Produtos, Cupons, Configs)
+  useEffect(() => {
     setProducts(JSON.parse(localStorage.getItem('groove_products')) || [
       { id: 'GN-P01', name: "Camiseta Oversized V1", price: 139.90, stock: 150 },
       { id: 'GN-P02', name: "Moletom Dark Essentials", price: 289.90, stock: 45 },
@@ -35,7 +61,6 @@ function AdminDashboard({ onLogout }) {
       { id: 1, code: 'SECRETGROOVE', discount: 15, validUntil: '2026-12-31' }
     ]);
 
-    // Carrega as configurações salvas
     const savedSettings = JSON.parse(localStorage.getItem('groove_settings'));
     if (savedSettings) setSettings(savedSettings);
   }, []);
@@ -43,8 +68,23 @@ function AdminDashboard({ onLogout }) {
   useEffect(() => { if (products.length > 0) localStorage.setItem('groove_products', JSON.stringify(products)); }, [products]);
   useEffect(() => { if (coupons.length > 0) localStorage.setItem('groove_coupons', JSON.stringify(coupons)); }, [coupons]);
 
-  const uniqueCustomers = Array.from(new Set(orders.map(o => o.customer))).map(name => orders.find(o => o.customer === name));
+  // Função para formatar a data do Firebase (Timestamp)
+  const formatarData = (timestamp) => {
+    if (!timestamp) return 'Pendente';
+    // Se a data já for uma string (caso haja lixo no banco antigo), retorna ela mesma
+    if (typeof timestamp === 'string') return timestamp;
+    
+    // Se for do Firebase
+    const data = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return new Intl.DateTimeFormat('pt-BR', { 
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+    }).format(data);
+  };
 
+  // Gerar a lista de clientes únicos baseada nos e-mails dos pedidos reais
+  const uniqueCustomers = Array.from(new Set(orders.map(o => o.email))).map(email => orders.find(o => o.email === email));
+
+  // Funções de Gerenciamento do Admin (Mantidas Exatamente Iguais)
   const handleSaveProduct = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -95,11 +135,10 @@ function AdminDashboard({ onLogout }) {
     const today = new Date();
     today.setHours(0,0,0,0);
     const validDate = new Date(dateString);
-    validDate.setHours(0,0,0,0); // Ignora a hora para comparar só o dia
+    validDate.setHours(0,0,0,0);
     return validDate >= today ? 'Ativo' : 'Expirado';
   };
 
-  // NOVO: Função para salvar configurações reais
   const handleSaveSettings = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -112,6 +151,9 @@ function AdminDashboard({ onLogout }) {
     localStorage.setItem('groove_settings', JSON.stringify(newSettings));
     alert('✅ Configurações salvas e aplicadas na loja!');
   };
+
+  // Calcula o total ganho somando a propriedade valorTotal dos pedidos reais
+  const totalGanhos = orders.reduce((acc, order) => acc + (order.valorTotal || 0), 0);
 
   return (
     <div className="admin-container">
@@ -145,19 +187,27 @@ function AdminDashboard({ onLogout }) {
             <header className="dashboard-header">
               <h2>Visão Geral de Pedidos</h2>
               <div className="header-stats">
-                <div className="stat-box"><span className="stat-label">Total Ganhos</span><span className="stat-value text-purple">R$ {orders.length * 150},00</span></div>
-                <div className="stat-box"><span className="stat-label">Pendentes</span><span className="stat-value highlight">{orders.filter(o => o.status === 'Processando').length}</span></div>
+                <div className="stat-box"><span className="stat-label">Total Ganhos</span><span className="stat-value text-purple">R$ {totalGanhos.toFixed(2).replace('.', ',')}</span></div>
+                <div className="stat-box"><span className="stat-label">Pedidos Pagos</span><span className="stat-value highlight">{orders.filter(o => o.status === 'PAGO').length}</span></div>
               </div>
             </header>
             <section className="table-section">
               <table className="data-table">
-                <thead><tr><th>ID Pedido</th><th>Cliente</th><th>Resumo do Item</th><th>Data</th><th>Status</th></tr></thead>
+                <thead><tr><th>ID Pedido</th><th>E-mail do Cliente</th><th>Itens Comprados</th><th>Data</th><th>Status</th><th>Valor</th></tr></thead>
                 <tbody>
-                  {orders.length === 0 ? (<tr><td colSpan="5" className="empty-state"><AlertCircle className="mx-auto mb-2 opacity-50"/>Nenhum pedido realizado.</td></tr>) : (
+                  {isLoadingOrders ? (
+                    <tr><td colSpan="6" className="empty-state">Carregando pedidos em tempo real...</td></tr>
+                  ) : orders.length === 0 ? (
+                    <tr><td colSpan="6" className="empty-state"><AlertCircle className="mx-auto mb-2 opacity-50"/>Nenhum pedido realizado ainda.</td></tr>
+                  ) : (
                     orders.map((o) => (
                       <tr key={o.id}>
-                        <td className="fw-bold">{o.id}</td><td className="text-white">{o.customer}</td><td className="truncate-cell text-gray">{o.item}</td><td>{o.date}</td>
-                        <td><span className={`status-badge status-${o.status.toLowerCase()}`}>{o.status}</span></td>
+                        <td className="fw-bold" style={{fontSize: '10px'}}>{o.pedidoId}</td>
+                        <td className="text-white">{o.email}</td>
+                        <td className="truncate-cell text-gray">{o.itens}</td>
+                        <td>{formatarData(o.data)}</td>
+                        <td><span className={`status-badge status-${(o.status || '').toLowerCase()}`}>{o.status}</span></td>
+                        <td className="text-green-400 font-bold">R$ {o.valorTotal ? o.valorTotal.toFixed(2).replace('.', ',') : '0,00'}</td>
                       </tr>
                     ))
                   )}
@@ -172,12 +222,19 @@ function AdminDashboard({ onLogout }) {
             <header className="dashboard-header"><h2>Base de Clientes VIP</h2></header>
             <section className="table-section">
               <table className="data-table">
-                <thead><tr><th>Nome</th><th>E-mail</th><th>Endereço Cadastrado</th><th>Data</th></tr></thead>
+                <thead><tr><th>E-mail</th><th>Última Compra</th><th>Valor Gasto</th></tr></thead>
                 <tbody>
-                  {uniqueCustomers.length === 0 ? (<tr><td colSpan="4" className="empty-state">Sem clientes ainda.</td></tr>) : (
-                    uniqueCustomers.map((c, i) => (
-                      <tr key={i}><td className="fw-bold text-white">{c.customer}</td><td className="text-purple">{c.customer.split(' ')[0].toLowerCase()}@email.com</td><td className="address-text">{c.address}</td><td>{c.date}</td></tr>
-                    ))
+                  {uniqueCustomers.length === 0 ? (<tr><td colSpan="3" className="empty-state">Sem clientes ainda.</td></tr>) : (
+                    uniqueCustomers.map((c, i) => {
+                      if (!c || !c.email) return null;
+                      return (
+                        <tr key={i}>
+                          <td className="fw-bold text-white">{c.email}</td>
+                          <td>{formatarData(c.data)}</td>
+                          <td className="text-purple">R$ {c.valorTotal ? c.valorTotal.toFixed(2).replace('.', ',') : '0,00'}</td>
+                        </tr>
+                      )
+                    })
                   )}
                 </tbody>
               </table>
@@ -185,6 +242,7 @@ function AdminDashboard({ onLogout }) {
           </div>
         )}
 
+        {/* ... (O RESTANTE DAS SUAS ABAS DE PRODUTOS, CUPONS E CONFIGURAÇÕES PERMANECEM EXATAMENTE IGUAIS) ... */}
         {activeTab === 'produtos' && (
           <div className="tab-fade-in">
             <header className="dashboard-header">

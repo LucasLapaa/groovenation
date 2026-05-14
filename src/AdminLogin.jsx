@@ -1,64 +1,76 @@
-import { useState } from 'react';
-import './AdminLogin.css';
-import logoImg from './assets/groove.png';
+import React, { useState } from 'react';
+import { Lock, ArrowRight, ShieldAlert } from 'lucide-react';
+import logoImg from './assets/groove.png'; // Confirme se o caminho da logo está certo
 
-function AdminLogin({ onLogin, onBack }) {
-  const [email, setEmail] = useState('');
+const AdminLogin = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleLogin = (e) => {
     e.preventDefault();
-    if (email === 'contato@groovenation.com.br' && password === 'Trovao123!') {
+    
+    // A SENHA FICA AQUI 👇
+    if (password === 'groove2026') {
       setError('');
-      onLogin();
+      onLogin(); // Avisa o sistema que a senha está certa e libera o acesso
     } else {
-      setError('Acesso negado. E-mail ou senha incorretos.');
+      setError('Senha incorreta. Acesso negado.');
+      setPassword('');
     }
   };
 
   return (
-    <div className="login-container">
-      {/* Botão de voltar para o site normal */}
-      <button onClick={onBack} className="login-back-btn">
-        ← Voltar para a loja
-      </button>
+    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4">
+      <div className="bg-neutral-900 border border-neutral-800 p-8 rounded-2xl w-full max-w-md shadow-2xl relative overflow-hidden">
+        
+        {/* Efeito de luz de fundo */}
+        <div className="absolute -top-20 -right-20 w-40 h-40 bg-purple-600 rounded-full blur-[80px] opacity-20"></div>
+        
+        <div className="text-center mb-8 relative z-10">
+          <img src={logoImg} alt="Groove Nation" className="h-12 mx-auto mb-6" />
+          <h1 className="text-2xl font-black text-white uppercase tracking-widest italic">Área Restrita</h1>
+          <p className="text-gray-400 text-sm mt-2">Acesso exclusivo para administradores</p>
+        </div>
 
-      <div className="login-box">
-        <img src={logoImg} alt="Groove Nation" className="login-logo" />
-        <h2 className="login-title">Área Restrita</h2>
-        <p className="login-subtitle">Acesso exclusivo para administradores.</p>
-
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="input-group">
-            <label>E-mail</label>
-            <input 
-              type="email" 
-              placeholder="contato@groovenation.com.br"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required 
-            />
+        <form onSubmit={handleLogin} className="space-y-6 relative z-10">
+          <div>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+                <Lock size={18} className="text-gray-500" />
+              </div>
+              <input 
+                type="password" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-black border border-neutral-800 text-white rounded-lg pl-12 pr-4 py-4 focus:outline-none focus:border-purple-500 transition-colors"
+                placeholder="Digite a senha mestra..."
+                required
+              />
+            </div>
+            {error && (
+              <p className="text-red-500 text-xs font-bold mt-2 flex items-center gap-1 uppercase tracking-widest">
+                <ShieldAlert size={14} /> {error}
+              </p>
+            )}
           </div>
 
-          <div className="input-group">
-            <label>Senha</label>
-            <input 
-              type="password" 
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required 
-            />
-          </div>
-
-          {error && <div className="error-message">{error}</div>}
-
-          <button type="submit" className="login-btn">Entrar no Painel</button>
+          <button 
+            type="submit" 
+            className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded-lg uppercase tracking-widest text-sm flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(147,51,234,0.2)] hover:shadow-[0_0_30px_rgba(147,51,234,0.4)]"
+          >
+            Acessar Painel <ArrowRight size={18} />
+          </button>
         </form>
+
+        <div className="mt-8 text-center relative z-10">
+          <a href="/" className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+            ← Voltar para a loja
+          </a>
+        </div>
+
       </div>
     </div>
   );
-}
+};
 
 export default AdminLogin;

@@ -3,11 +3,15 @@ import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion'
 import emailjs from '@emailjs/browser';
 import { Menu, X, MessageCircle, Instagram, Facebook, Clock, ArrowUp, ShieldCheck, RefreshCw, Layers, Printer, Mail, CheckCircle, Loader2, Zap, Lock, ChevronDown, Terminal, Ruler, Ticket, Barcode, Cookie, CreditCard, Truck, ShoppingBag, Trash2, Plus, Minus, ArrowRight, Gift } from 'lucide-react';
 
-// --- IMPORTAÇÕES DO STRIPE E FIREBASE ---
+// --- IMPORTAÇÕES DO STRIPE ---
 import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { initializeApp } from 'firebase/app';
-import { getFunctions, httpsCallable } from 'firebase/functions';
+import { Elements, PaymentElement, useStripe, useElements, LinkAuthenticationElement, AddressElement } from '@stripe/react-stripe-js';
+
+// --- IMPORTAÇÕES DO FIREBASE (ATUALIZADAS) ---
+// Puxando tudo do seu arquivo firebase.js para não dar erro de duplicação
+import { httpsCallable } from 'firebase/functions';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { db, functions } from './firebase'; 
 
 // --- IMPORTANDO COMPONENTES EXTERNOS ---
 import AdminDashboard from './AdminDashboard';
@@ -18,19 +22,8 @@ import MaintenanceView from './MaintenanceView';
 // ==========================================
 // CONFIGURAÇÕES DE PAGAMENTO (COLOQUE SUAS CHAVES AQUI)
 // ==========================================
-const stripePromise = loadStripe('pk_test_51TVeqq5YSi9SEmZUXV55DdlfX5DTsdTHdoNeWa4aipfzo7rNHJvhgSSX0wb2BckPZNsqlCPOfcBRioWVRBpq7rHr001OGwaFIJ');
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
 
-const firebaseConfig = {
-  apiKey: "AIzaSyDh1wky8GaSK1Z13DT1kWHefAB7csf0orM",
-  authDomain: "groovenation-448d9.firebaseapp.com",
-  projectId: "groovenation-448d9",
-  storageBucket: "groovenation-448d9.firebasestorage.app",
-  messagingSenderId: "484839992777",
-  appId: "1:484839992777:web:381f55649bbfc05a8f4c18"
-};
-
-const app = initializeApp(firebaseConfig);
-const functions = getFunctions(app);
 
 // ==========================================
 // BANCO DE PRODUTOS PADRÃO (Para vitrine)
@@ -55,30 +48,56 @@ const CheckoutForm = ({ total, onBack }) => {
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: `${window.location.origin}`, 
+        return_url: `${window.location.origin}/sucesso`, 
       },
     });
 
-    if (error) {
-      setErrorMessage(error.message);
-    }
+    if (error) setErrorMessage(error.message);
     setIsProcessing(false);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-4 mt-6 h-full">
-      <div className="bg-white p-4 rounded-xl shadow-inner">
-        <PaymentElement />
+    <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[70vh]">
+      {/* CSS para forçar a barra de rolagem a ser visível e roxa */}
+      <style>{`
+        .stripe-scroll::-webkit-scrollbar { width: 4px; }
+        .stripe-scroll::-webkit-scrollbar-track { background: #0a0a0a; }
+        .stripe-scroll::-webkit-scrollbar-thumb { background: #9333ea; border-radius: 10px; }
+      `}</style>
+
+      {/* ÁREA DE CAMPOS COM SCROLL REAL */}
+      <div className="flex-1 overflow-y-auto pr-2 stripe-scroll">
+        <div className="space-y-6 pb-4">
+          <div>
+            <h3 className="text-white text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-50"><Mail size={12} /> Contato</h3>
+            <LinkAuthenticationElement />
+          </div>
+
+          <div>
+            <h3 className="text-white text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-50"><Truck size={12} /> Entrega</h3>
+            <AddressElement options={{ mode: 'shipping' }} />
+          </div>
+
+          <div>
+            <h3 className="text-white text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-50"><CreditCard size={12} /> Pagamento</h3>
+            <PaymentElement options={{ layout: 'tabs' }} />
+          </div>
+        </div>
       </div>
       
-      {errorMessage && <div className="text-red-500 text-xs font-bold text-center bg-red-500/10 p-2 rounded">{errorMessage}</div>}
-      
-      <div className="mt-auto flex flex-col gap-2 pt-4">
+      {/* ÁREA DE BOTÕES FIXA */}
+      <div className="shrink-0 pt-4 mt-auto border-t border-neutral-800 bg-neutral-900">
+        {errorMessage && (
+          <div className="text-red-500 text-[10px] font-bold text-center bg-red-500/10 p-2 rounded mb-3 border border-red-500/20">
+            {errorMessage}
+          </div>
+        )}
+        
         <button disabled={isProcessing || !stripe || !elements} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] disabled:opacity-50">
           {isProcessing ? <Loader2 className="animate-spin" size={20} /> : `PAGAR R$ ${total.toFixed(2).replace('.', ',')}`}
           {!isProcessing && <Lock size={16} />}
         </button>
-        <button type="button" onClick={onBack} disabled={isProcessing} className="w-full bg-transparent border border-neutral-700 text-gray-400 hover:text-white py-3 rounded text-xs font-bold uppercase tracking-widest transition-colors">
+        <button type="button" onClick={onBack} disabled={isProcessing} className="w-full bg-transparent text-gray-500 hover:text-white py-3 text-[10px] font-bold uppercase tracking-widest transition-colors">
           Voltar ao Carrinho
         </button>
       </div>
@@ -112,6 +131,9 @@ const TopAnnouncementBar = ({ show }) => {
   );
 };
 
+// ==========================================
+// COMPONENTE: SIDEBAR DO CARRINHO (ATUALIZADO COM PIX)
+// ==========================================
 const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem }) => {
   const freeShippingThreshold = 250;
   
@@ -119,12 +141,15 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponMessage, setCouponMessage] = useState({ text: '', type: '' });
   
-  // Estados para a tela de Pagamento
   const [clientSecret, setClientSecret] = useState(null);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
+  
+  // NOVOS ESTADOS PARA O PIX
+  const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' ou 'pix'
+  const [pixOrder, setPixOrder] = useState(null);
+  const [isProcessingPix, setIsProcessingPix] = useState(false);
 
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
-  
   let discountValue = 0;
   let isFreeShippingCoupon = false;
 
@@ -156,43 +181,106 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     setCouponMessage({ text: '', type: '' });
   };
 
-  // Chama a Cloud Function do Firebase para iniciar o pagamento
- const startCheckout = async () => {
+  // PAGAMENTO 1: STRIPE (CARTÃO)
+  
+  const startCheckout = async () => {
     if (cartItems.length === 0) return;
     setIsInitializingPayment(true);
-    
     try {
       const createPaymentIntent = httpsCallable(functions, 'createPaymentIntent');
+      const itemsString = cartItems.map(item => `${item.quantity}x ${item.name} (Tam: G)`).join(', ');
+
+      const totalParaEnvio = parseFloat(total.toFixed(2));
       
-      // RECALCULO SEGURO: Somamos tudo direto dos itens do carrinho para evitar o NaN
-      const calculatedSubtotal = cartItems.reduce((acc, item) => acc + (Number(item.price) * item.quantity), 0);
+      // Define se vai abrir a tela de Cartão ou de Boleto no Stripe
+      const metodoStripe = paymentMethod === 'boleto' ? ['boleto'] : ['card'];
+
+      const result = await createPaymentIntent({ 
+        total: totalParaEnvio, 
+        items: itemsString,
+        method: metodoStripe // Enviando a escolha pro Firebase!
+      });
       
-      let finalTotal = calculatedSubtotal;
-      
-      // Aplica desconto se houver cupom
-      if (appliedCoupon && appliedCoupon.type === 'discount') {
-        finalTotal = calculatedSubtotal * (1 - appliedCoupon.discount / 100);
-      }
-
-      // Garantimos que o número é válido e arredondamos para 2 casas decimais
-      const totalParaEnvio = parseFloat(finalTotal.toFixed(2));
-
-      if (isNaN(totalParaEnvio) || totalParaEnvio <= 0) {
-        throw new Error("Valor do carrinho inválido");
-      }
-
-      console.log("Enviando para o Stripe:", totalParaEnvio);
-
-      const result = await createPaymentIntent({ total: totalParaEnvio });
       setClientSecret(result.data.clientSecret);
-      
     } catch (error) {
-      console.error("Erro detalhado:", error);
-      alert("Erro ao processar valor. Verifique os itens do carrinho.");
+      console.error("Erro:", error);
+      alert("Erro ao iniciar pagamento.");
     } finally {
       setIsInitializingPayment(false);
     }
   };
+
+  // PAGAMENTO 2: PIX VIA WHATSAPP (DIRETO NO BANCO DE DADOS)
+  const handlePixCheckout = async () => {
+    if (cartItems.length === 0) return;
+    setIsProcessingPix(true);
+    
+    try {
+      const itemsString = cartItems.map(item => `${item.quantity}x ${item.name} (Tam: G)`).join(', ');
+      // Gera um ID aleatório de 6 números para o pedido Pix
+      const orderId = `PIX-${Math.floor(100000 + Math.random() * 900000)}`;
+      const totalParaEnvio = parseFloat(total.toFixed(2));
+
+      // Salva direto na coleção "pedidos" para aparecer no Dashboard
+      await setDoc(doc(db, "pedidos", orderId), {
+        pedidoId: orderId,
+        valorTotal: totalParaEnvio,
+        status: "AGUARDANDO PIX",
+        itens: itemsString,
+        email: "Pix pelo WhatsApp",
+        data: serverTimestamp()
+      });
+
+      // Salva o pedido no estado para mostrar a tela de sucesso
+      setPixOrder({ id: orderId, total: totalParaEnvio, items: itemsString });
+      
+    } catch (error) {
+      console.error("Erro ao gerar pedido PIX:", error);
+      alert("Erro ao gerar pedido. Verifique sua conexão.");
+    } finally {
+      setIsProcessingPix(false);
+    }
+  };
+
+  // TELA DE SUCESSO DO PIX
+  if (pixOrder) {
+    const WHATSAPP_NUMBER = "5516988265500"; // Coloque seu número aqui
+    const message = `Fala Groove Nation! ✌️\n\nAcabei de gerar o pedido *${pixOrder.id}* no site e quero fazer o pagamento via Pix.\n\n*Valor Total:* R$ ${pixOrder.total.toFixed(2).replace('.', ',')}\n*Itens:* ${pixOrder.items}`;
+    const wpLink = `https://wa.me/${5516988265500}?text=${encodeURIComponent(message)}`;
+
+    return (
+      <AnimatePresence>
+        {isOpen && (
+          <>
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" />
+            <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} className="fixed top-0 right-0 h-full w-full max-w-md z-[101] bg-neutral-950 border-l border-neutral-800 shadow-2xl flex flex-col justify-center items-center p-8 text-center">
+              <div className="bg-green-500/10 p-6 rounded-full border border-green-500/20 mb-6">
+                <Ticket className="text-green-500" size={48} />
+              </div>
+              <h2 className="text-2xl font-black text-white italic tracking-widest uppercase mb-2">Pedido Gerado!</h2>
+              <p className="text-gray-400 mb-6 text-sm">O seu pedido já está no nosso sistema.</p>
+              
+              <div className="bg-black w-full border border-neutral-800 rounded-lg p-6 mb-8">
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Código do Pedido</p>
+                <p className="text-2xl font-black text-purple-500 tracking-widest">{pixOrder.id}</p>
+                <hr className="border-neutral-800 my-4" />
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Valor Total</p>
+                <p className="text-xl font-bold text-white">R$ {pixOrder.total.toFixed(2).replace('.', ',')}</p>
+              </div>
+
+              <p className="text-xs text-gray-400 mb-4 px-4 leading-relaxed">Para garantir suas peças e combinar a entrega, clique no botão abaixo para nos enviar o comprovante no WhatsApp.</p>
+
+              <a href={wpLink} target="_blank" rel="noreferrer" onClick={() => { setPixOrder(null); onClose(); }} className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-4 rounded tracking-widest uppercase text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(34,197,94,0.3)]">
+                CHAMAR NO WHATSAPP <ArrowRight size={16} />
+              </a>
+              
+              <button onClick={() => setPixOrder(null)} className="mt-6 text-gray-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors">Voltar</button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
@@ -201,25 +289,26 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" />
           <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed top-0 right-0 h-full w-full max-w-md z-[101] bg-neutral-950 border-l border-neutral-800 shadow-2xl flex flex-col">
             
-            <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-black">
+            <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-black shrink-0">
               <h2 className="text-xl font-black text-white italic tracking-widest uppercase">{clientSecret ? 'CHECKOUT SEGURO' : 'CARRINHO'}</h2>
               <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors"><X size={28}/></button>
             </div>
             
-            {/* SE O CLIENT SECRET EXISTIR, MOSTRA A TELA DO STRIPE. SE NÃO, MOSTRA O CARRINHO NORMAL */}
             {clientSecret ? (
-              <div className="p-6 flex-1 flex flex-col bg-neutral-900">
-                <div className="flex items-center justify-center gap-2 mb-4 text-purple-400">
+              <div className="p-6 flex-1 flex flex-col bg-neutral-900 overflow-hidden">
+                <div className="flex items-center justify-center gap-2 mb-4 text-purple-400 shrink-0">
                   <Lock size={16} />
                   <span className="text-xs font-bold tracking-[0.2em] uppercase">Ambiente Criptografado</span>
                 </div>
-                <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#9333ea' } } }}>
-                  <CheckoutForm total={total} onBack={() => setClientSecret(null)} />
-                </Elements>
+                <div className="flex-1 overflow-hidden">
+                  <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#9333ea' } } }}>
+                    <CheckoutForm total={total} onBack={() => setClientSecret(null)} />
+                  </Elements>
+                </div>
               </div>
             ) : (
               <>
-                <div className="p-6 bg-neutral-900/50 border-b border-neutral-800">
+                <div className="p-6 bg-neutral-900/50 border-b border-neutral-800 shrink-0">
                   <div className="flex justify-between text-[10px] font-bold mb-2 uppercase tracking-widest"><span className="text-gray-400">Meta Frete Grátis</span><span className="text-white">R$ 250,00</span></div>
                   <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden mb-3"><motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className={`h-full ${progress === 100 || isFreeShippingCoupon ? 'bg-green-500' : 'bg-purple-600'}`} /></div>
                   <p className="text-center text-xs font-bold uppercase tracking-widest">{(progress === 100 || isFreeShippingCoupon) ? (<span className="text-green-400">VOCÊ GANHOU FRETE GRÁTIS</span>) : (<span className="text-gray-400">Faltam <span className="text-white">R$ {remaining.toFixed(2).replace('.', ',')}</span></span>)}</p>
@@ -252,11 +341,11 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                 </div>
                 
                 {cartItems.length > 0 && (
-                  <div className="p-6 bg-black border-t border-neutral-800 flex flex-col gap-4">
+                  <div className="p-6 bg-black border-t border-neutral-800 flex flex-col gap-4 shrink-0">
                     <div className="flex flex-col gap-2">
                       {!appliedCoupon ? (
                         <div className="flex gap-2">
-                          <input type="text" placeholder="Cupom da Roleta / Desconto" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-4 py-2 text-xs font-bold text-white uppercase focus:border-purple-500 outline-none" />
+                          <input type="text" placeholder="Cupom da Roleta" value={couponInput} onChange={(e) => setCouponInput(e.target.value)} className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-4 py-2 text-xs font-bold text-white uppercase focus:border-purple-500 outline-none" />
                           <button onClick={handleApplyCoupon} className="bg-neutral-800 hover:bg-neutral-700 text-white font-bold px-4 rounded text-xs border border-neutral-700 uppercase tracking-widest">Aplicar</button>
                         </div>
                       ) : (
@@ -265,19 +354,55 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                           <button onClick={removeCoupon} className="text-gray-400 hover:text-white"><X size={14}/></button>
                         </div>
                       )}
-                      {couponMessage.text && <p className={`text-[10px] font-bold uppercase tracking-widest ${couponMessage.type === 'error' ? 'text-red-400' : 'text-green-400'}`}>{couponMessage.text}</p>}
                     </div>
 
                     <div className="space-y-2 pt-2 border-t border-neutral-800/50">
-                      <div className="flex justify-between items-center text-sm"><span className="text-gray-400">Subtotal</span><span className="text-white">R$ {subtotal.toFixed(2).replace('.', ',')}</span></div>
-                      {appliedCoupon && appliedCoupon.type === 'discount' && <div className="flex justify-between items-center text-sm"><span className="text-green-400">Desconto</span><span className="text-green-400">- R$ {discountValue.toFixed(2).replace('.', ',')}</span></div>}
-                      {isFreeShippingCoupon && <div className="flex justify-between items-center text-sm"><span className="text-green-400">Frete</span><span className="text-green-400 font-bold uppercase">Grátis (Roleta)</span></div>}
-                      <div className="flex justify-between items-center mt-2 pt-2"><span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span><span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span></div>
+                      <div className="flex justify-between items-center mt-2"><span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span><span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span></div>
                     </div>
 
-                    <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-white hover:bg-purple-600 text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-70">
-                      {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'FINALIZAR COMPRA'} <ArrowRight size={16} />
-                    </button>
+                    {/* SELETOR DE FORMA DE PAGAMENTO EM 3 BOTÕES */}
+                    <div className="flex flex-col gap-2 mt-2">
+                      <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">Selecione a forma de pagamento</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        <button onClick={() => setPaymentMethod('card')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'card' ? 'border-purple-500 bg-purple-500/10 text-purple-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>
+                          💳 Cartão
+                        </button>
+                        <button onClick={() => setPaymentMethod('boleto')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'boleto' ? 'border-white bg-white/10 text-white' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>
+                          📄 Boleto
+                        </button>
+                        <button onClick={() => setPaymentMethod('pix')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'pix' ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>
+                          💠 Pix
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* AVISO DO PIX */}
+                    {paymentMethod === 'pix' && (
+                      <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded text-center">
+                        <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">⚠️ Pagamentos via Pix são finalizados direto no nosso WhatsApp para conferência do comprovante e agilização do envio.</p>
+                      </div>
+                    )}
+
+                    {/* BOTÃO FINAL DINÂMICO */}
+                  
+                    {paymentMethod === 'card' && (
+                      <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-purple-600 hover:bg-purple-500 text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-70">
+                        {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'PAGAR COM CARTÃO'} <ArrowRight size={16} />
+                      </button>
+                    )}
+                    
+                    {paymentMethod === 'boleto' && (
+                      <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-white hover:bg-gray-200 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-70">
+                        {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'GERAR BOLETO'} <ArrowRight size={16} />
+                      </button>
+                    )}
+
+                    {paymentMethod === 'pix' && (
+                      <button onClick={handlePixCheckout} disabled={isProcessingPix} className="w-full bg-green-500 hover:bg-green-400 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-70 shadow-[0_0_15px_rgba(34,197,94,0.2)]">
+                        {isProcessingPix ? <Loader2 className="animate-spin" size={20} /> : 'GERAR PEDIDO PIX'} <ArrowRight size={16} />
+                      </button>
+                    )}
+
                   </div>
                 )}
               </>
