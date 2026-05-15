@@ -38,7 +38,7 @@ console.log("Minha chave do Stripe:", import.meta.env.VITE_STRIPE_PUBLISHABLE_KE
 // ==========================================
 // CONFIGURAÇÕES DE PAGAMENTO (COLOQUE SUAS CHAVES AQUI)
 // ==========================================
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+const stripePromise = loadStripe("pk_live_51TVuM39BeQIlr6KIqkQWu6xWUu44ensNxnaSqsgi5CCBBq8w2IqMvx5mLZwiZec7633Uiq6HPLt1VDbgVv9j5aF400xCWOqqd4");
 
 
 // ==========================================
