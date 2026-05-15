@@ -32,78 +32,67 @@ const defaultProducts = [
   ];
 
 // ==========================================
-// COMPONENTE: FORMULÁRIO DO STRIPE (INTERNO)
+// COMPONENTE: FORMULÁRIO DO STRIPE (FRONTEND)
 // ==========================================
 const CheckoutForm = ({ total, onBack }) => {
   const stripe = useStripe();
   const elements = useElements();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [errorMessage, setErrorMessage] = useState(null);
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (!stripe || !elements) return;
 
     setIsProcessing(true);
     const { error } = await stripe.confirmPayment({
       elements,
       confirmParams: {
-        return_url: `${window.location.origin}/sucesso`, 
+        // Para onde o site vai depois que o cartão for aprovado
+        return_url: `${window.location.origin}/`, 
       },
     });
 
-    if (error) setErrorMessage(error.message);
+    if (error) {
+      alert(error.message); // Mostra se o cartão foi recusado
+    }
     setIsProcessing(false);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full max-h-[70vh]">
-      {/* CSS para forçar a barra de rolagem a ser visível e roxa */}
-      <style>{`
-        .stripe-scroll::-webkit-scrollbar { width: 4px; }
-        .stripe-scroll::-webkit-scrollbar-track { background: #0a0a0a; }
-        .stripe-scroll::-webkit-scrollbar-thumb { background: #9333ea; border-radius: 10px; }
-      `}</style>
-
-      {/* ÁREA DE CAMPOS COM SCROLL REAL */}
-      <div className="flex-1 overflow-y-auto pr-2 stripe-scroll">
-        <div className="space-y-6 pb-4">
-          <div>
-            <h3 className="text-white text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-50"><Mail size={12} /> Contato</h3>
-            <LinkAuthenticationElement />
-          </div>
-
-          <div>
-            <h3 className="text-white text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-50"><Truck size={12} /> Entrega</h3>
-            <AddressElement options={{ mode: 'shipping' }} />
-          </div>
-
-          <div>
-            <h3 className="text-white text-[10px] font-bold uppercase tracking-widest mb-3 flex items-center gap-2 opacity-50"><CreditCard size={12} /> Pagamento</h3>
-            <PaymentElement options={{ layout: 'tabs' }} />
-          </div>
-        </div>
+    <form onSubmit={handleSubmit} className="flex flex-col h-full">
+      {/* O container com rolagem para o formulário do Stripe */}
+      <div className="flex-1 overflow-y-auto px-2 pb-4">
+        <PaymentElement 
+          options={{ 
+            layout: 'tabs', // 👈 FORÇA O MODO DE ABAS (Já vem aberto)
+            fields: {
+              billingDetails: 'never' // 👈 PROÍBE O STRIPE DE PEDIR ENDEREÇO/CONTATO DE NOVO
+            }
+          }} 
+        />
       </div>
-      
-      {/* ÁREA DE BOTÕES FIXA */}
-      <div className="shrink-0 pt-4 mt-auto border-t border-neutral-800 bg-neutral-900">
-        {errorMessage && (
-          <div className="text-red-500 text-[10px] font-bold text-center bg-red-500/10 p-2 rounded mb-3 border border-red-500/20">
-            {errorMessage}
-          </div>
-        )}
-        
-        <button disabled={isProcessing || !stripe || !elements} className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(147,51,234,0.3)] disabled:opacity-50">
-          {isProcessing ? <Loader2 className="animate-spin" size={20} /> : `PAGAR R$ ${total.toFixed(2).replace('.', ',')}`}
-          {!isProcessing && <Lock size={16} />}
+
+      {/* Botões de Ação */}
+      <div className="pt-4 border-t border-neutral-800 mt-auto shrink-0 bg-neutral-900">
+        <button 
+          disabled={isProcessing || !stripe || !elements} 
+          className="w-full bg-purple-700 hover:bg-purple-600 text-white font-black py-4 rounded uppercase tracking-widest text-sm transition-all flex justify-center items-center gap-2 disabled:opacity-50"
+        >
+          {isProcessing ? 'PROCESSANDO...' : `PAGAR R$ ${total.toFixed(2).replace('.', ',')}`}
         </button>
-        <button type="button" onClick={onBack} disabled={isProcessing} className="w-full bg-transparent text-gray-500 hover:text-white py-3 text-[10px] font-bold uppercase tracking-widest transition-colors">
-          Voltar ao Carrinho
+        
+        <button 
+          type="button" 
+          onClick={onBack} 
+          className="w-full mt-4 text-gray-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors"
+        >
+          VOLTAR AO CARRINHO
         </button>
       </div>
     </form>
   );
 };
+
 
 // ==========================================
 // COMPONENTES MODAIS E GLOBAIS
@@ -360,7 +349,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                   ) : (
                     cartItems.map((item) => (
                       <motion.div layout key={item.id} className="flex gap-4 bg-neutral-900 p-3 rounded-lg border border-neutral-800">
-                        <img src={item.img} alt={item.name} className="w-20 h-24 object-cover rounded bg-neutral-800" />
+                        <img src={item.imgFront || item.img} alt={item.name} className="w-20 h-24 object-cover rounded bg-neutral-800" />
                         <div className="flex-1 flex flex-col justify-between">
                           <div className="flex justify-between items-start">
                             <div><h3 className="font-bold text-white text-xs uppercase tracking-wide">{item.name}</h3><p className="text-[10px] text-gray-500 uppercase mt-1">Tam: G</p></div>
