@@ -557,18 +557,34 @@ const SpinAndWin = () => {
   );
 };
 
-// ==========================================
-// HOME VIEW E APP PRINCIPAL
-// ==========================================
+
 // ==========================================
 // COMPONENTE: VISUALIZAÇÃO HOME (VITRINE)
 // ==========================================
 const HomeView = ({ onAddToCart }) => {
-  // Puxa os produtos do localStorage ou usa o padrão se estiver vazio
-  const products = JSON.parse(localStorage.getItem('groove_products')) || defaultProducts;
+  // 1. ESTADOS PARA O FIREBASE: Substituímos o localStorage por variáveis de nuvem
+  const [products, setProducts] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 2. CONEXÃO COM O BANCO: Busca os produtos em tempo real
+  useEffect(() => {
+    const q = query(collection(db, "produtos"), orderBy("dataCriacao", "desc"));
+    
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const listaProdutos = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setProducts(listaProdutos);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   return (
     <div className="bg-neutral-950">
+      
       {/* HERO SECTION (BANNER PRINCIPAL) */}
       <section className="relative h-[95vh] w-full flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
@@ -602,107 +618,87 @@ const HomeView = ({ onAddToCart }) => {
           </div>
         </div>
         
-        {/* GRID DE PRODUTOS */}
+        {/* GRID DE PRODUTOS (AGORA LÊ DA NUVEM) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.slice(0,8).map((product) => (
-            <motion.div 
-              key={product.id} 
-              initial={{ opacity: 0, y: 20 }} 
-              whileInView={{ opacity: 1, y: 0 }} 
-              viewport={{ once: true }} 
-              className="group relative flex flex-col"
-            >
-              {/* 👇 CONTAINER DA IMAGEM COM AS NOVAS BORDAS ROXAS 👇 */}
-              {/* Mudanças: border-purple-900 (borda fina constante) e group-hover:border-purple-500 (brilha no hover) */}
-              <div className="relative aspect-[3/4] bg-neutral-900 mb-4 overflow-hidden rounded-sm cursor-pointer border border-purple-900 group-hover:border-purple-500 transition-all duration-500 group-hover:shadow-[0_0_15px_rgba(147,51,234,0.3)]">
-                
-                {product.tag && (
-                  <div className="absolute top-3 left-3 z-20 bg-white text-black text-[9px] font-black px-3 py-1 uppercase tracking-widest shadow-lg">
-                    {product.tag}
-                  </div>
-                )}
-                
-                {/* Lógica de Imagem Dupla (Frente/Verso) mantida */}
-                {/* Imagem da Frente */}
-                <img 
-                  src={product.imgFront || product.img} 
-                  alt={product.name} 
-                  className={`absolute inset-0 w-full h-full object-cover opacity-90 transition-all duration-700 z-10 ${product.imgBack ? 'group-hover:opacity-0' : 'group-hover:opacity-100 group-hover:scale-105'}`} 
-                />
-                
-                {/* Imagem do Verso */}
-                {product.imgBack && (
+          
+          {isLoading ? (
+             <div className="col-span-full text-center py-20"><p className="text-purple-500 animate-pulse font-bold tracking-[0.3em] text-xs uppercase">Buscando Estoque na Nuvem...</p></div>
+          ) : products.length === 0 ? (
+             <div className="col-span-full text-center py-20"><p className="text-gray-500 font-bold tracking-widest text-xs uppercase">Nenhum produto cadastrado.</p></div>
+          ) : (
+            products.slice(0,8).map((product) => (
+              <motion.div 
+                key={product.id} 
+                initial={{ opacity: 0, y: 20 }} 
+                whileInView={{ opacity: 1, y: 0 }} 
+                viewport={{ once: true }} 
+                className="group relative flex flex-col"
+              >
+                <div className="relative aspect-[3/4] bg-neutral-900 mb-4 overflow-hidden rounded-sm cursor-pointer border border-purple-900 group-hover:border-purple-500 transition-all duration-500 group-hover:shadow-[0_0_15px_rgba(147,51,234,0.3)]">
+                  
+                  {product.tag && (
+                    <div className="absolute top-3 left-3 z-20 bg-white text-black text-[9px] font-black px-3 py-1 uppercase tracking-widest shadow-lg">
+                      {product.tag}
+                    </div>
+                  )}
+                  
                   <img 
-                    src={product.imgBack} 
-                    alt={`${product.name} - Verso`} 
-                    className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 z-15" 
+                    src={product.imgFront || product.img} 
+                    alt={product.name} 
+                    className={`absolute inset-0 w-full h-full object-cover opacity-90 transition-all duration-700 z-10 ${product.imgBack ? 'group-hover:opacity-0' : 'group-hover:opacity-100 group-hover:scale-105'}`} 
                   />
-                )}
+                  
+                  {product.imgBack && (
+                    <img 
+                      src={product.imgBack} 
+                      alt={`${product.name} - Verso`} 
+                      className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 z-15" 
+                    />
+                  )}
+                  
+                  <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-20">
+                    <button 
+                      onClick={() => onAddToCart(product)} 
+                      disabled={product.stock <= 0} 
+                      className={`w-full font-black text-xs py-4 uppercase tracking-widest transition-colors ${product.stock > 0 ? 'bg-purple-600 text-white hover:bg-white hover:text-black' : 'bg-neutral-950/80 text-gray-500 backdrop-blur-md cursor-not-allowed'}`}
+                    >
+                      {product.stock > 0 ? 'Adicionar ao Carrinho' : 'Esgotado'}
+                    </button>
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+                </div>
                 
-                {/* Botão Adicionar e Degradê */}
-                <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-20">
-                  <button 
-                    onClick={() => onAddToCart(product)} 
-                    disabled={product.stock <= 0} 
-                    className={`w-full font-black text-xs py-4 uppercase tracking-widest transition-colors ${product.stock > 0 ? 'bg-purple-600 text-white hover:bg-white hover:text-black' : 'bg-neutral-950/80 text-gray-500 backdrop-blur-md cursor-not-allowed'}`}
-                  >
-                    {product.stock > 0 ? 'Adicionar ao Carrinho' : 'Esgotado'}
-                  </button>
+                <div className="flex flex-col px-1">
+                  <h4 className="font-bold text-sm text-neutral-300 uppercase tracking-widest">{product.name}</h4>
+                  <div className="flex items-center justify-between mt-2">
+                    {/* 👇 O ?. evita erro se algum produto velho não tiver preço */}
+                    <span className="font-black text-white text-lg">R$ {product.price?.toFixed(2).replace('.', ',')}</span>
+                    {product.stock <= 5 && product.stock > 0 && <span className="text-[9px] text-red-500 font-bold uppercase tracking-wider animate-pulse">Últimas Unidades</span>}
+                  </div>
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
-              </div>
-              
-              {/* Textos do Produto (Nome e Preço) */}
-              <div className="flex flex-col px-1">
-                <h4 className="font-bold text-sm text-neutral-300 uppercase tracking-widest">{product.name}</h4>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="font-black text-white text-lg">R$ {product.price.toFixed(2).replace('.', ',')}</span>
-                  {product.stock <= 5 && product.stock > 0 && <span className="text-[9px] text-red-500 font-bold uppercase tracking-wider animate-pulse">Últimas Unidades</span>}
-                </div>
-              </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))
+          )}
         </div>
       </section>
 
-      {/* SEÇÃO CATEGORIAS DESTAQUE */}
+      {/* SEÇÃO CATEGORIAS DESTAQUE (COM AS FOTOS NOVAS) */}
       <section className="py-12 bg-black border-y border-neutral-900">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-4 h-[600px]">
-          
-          {/* BANNER 1: T-SHIRTS */}
           <div className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer">
-            <img 
-              src="/produtos/1.png" 
-              alt="T-Shirts Groove Nation"
-              className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" 
-            />
+            <img src="/produtos/1.png" alt="T-Shirts Groove Nation" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" />
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-              <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">
-                OVERSIZED
-              </h3>
-              <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">
-                COMPRAR
-              </span>
+              <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">T-Shirts</h3>
+              <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">COMPRAR</span>
             </div>
           </div>
-
-          {/* BANNER 2: CROPPED */}
           <div className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer">
-            <img 
-              src="/produtos/34.png" 
-              alt="Cropped Groove Nation"
-              className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" 
-            />
+            <img src="/produtos/34.png" alt="Cropped Groove Nation" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" />
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-              <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">
-                CROPPED
-              </h3>
-              <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">
-                COMPRAR
-              </span>
+              <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">Cropped</h3>
+              <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">COMPRAR</span>
             </div>
           </div>
-
         </div>
       </section>
 

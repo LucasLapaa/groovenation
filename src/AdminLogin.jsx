@@ -10,7 +10,7 @@ const AdminLogin = ({ onLogin }) => {
     e.preventDefault();
     
     // A SENHA FICA AQUI 👇
-    if (password === 'groove2026') {
+    if (password === 'groove2026vencemos') {
       setError('');
       onLogin(); // Avisa o sistema que a senha está certa e libera o acesso
     } else {

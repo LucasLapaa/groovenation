@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ShoppingBag, Users, Tag, Ticket, Settings, LogOut, Plus, Edit2, Trash2, X, AlertCircle, Eye, CheckCircle, XCircle } from 'lucide-react';
-import { collection, getDocs, query, orderBy, doc, updateDoc } from 'firebase/firestore';
+import { collection, query, orderBy, doc, updateDoc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase'; // Certifique-se de que o caminho aponta para o seu firebase.js
 import './AdminDashboard.css';
 import logoImg from './assets/groove.png';
@@ -8,16 +8,17 @@ import logoImg from './assets/groove.png';
 function AdminDashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState('pedidos');
 
-  // Estado para armazenar os pedidos REAIS do banco de dados
+  // Estados da Nuvem (Firebase)
   const [orders, setOrders] = useState([]);
+  const [products, setProducts] = useState([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
   // Estados para o Modal de Detalhes do Pedido
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
 
-  // Estados de Produtos, Cupons e Configurações
-  const [products, setProducts] = useState([]);
+  // Estados de Cupons e Configurações (Mantidos Locais por enquanto)
   const [coupons, setCoupons] = useState([]);
   const [settings, setSettings] = useState({
     adminEmail: 'contato@groovenation.com.br',
@@ -32,66 +33,53 @@ function AdminDashboard({ onLogout }) {
   const [editingCoupon, setEditingCoupon] = useState(null);
 
   // ==========================================
-  // BUSCA E GERENCIAMENTO DE PEDIDOS (FIREBASE)
+  // CONEXÃO EM TEMPO REAL COM A NUVEM (FIREBASE)
   // ==========================================
-  const fetchOrders = async () => {
-    setIsLoadingOrders(true);
-    try {
-      const q = query(collection(db, "pedidos"), orderBy("data", "desc"));
-      const querySnapshot = await getDocs(q);
-      
-      const listaPedidos = querySnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      
-      setOrders(listaPedidos);
-    } catch (error) {
-      console.error("Erro ao buscar os pedidos do Firebase:", error);
-    } finally {
-      setIsLoadingOrders(false);
-    }
-  };
-
   useEffect(() => {
-    fetchOrders();
+    // 1. Escutando Pedidos
+    const qOrders = query(collection(db, "pedidos"), orderBy("data", "desc"));
+    const unsubOrders = onSnapshot(qOrders, (snapshot) => {
+      const listaPedidos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setOrders(listaPedidos);
+      setIsLoadingOrders(false);
+    });
+
+    // 2. Escutando Produtos (Nuvem)
+    const qProducts = query(collection(db, "produtos"), orderBy("dataCriacao", "desc"));
+    const unsubProducts = onSnapshot(qProducts, (snapshot) => {
+      const listaProdutos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setProducts(listaProdutos);
+      setIsLoadingProducts(false);
+    });
+
+    // 3. Carregando Cupons e Settings Locais
+    setCoupons(JSON.parse(localStorage.getItem('groove_coupons')) || [
+      { id: 1, code: 'SECRETGROOVE', discount: 15, validUntil: '2026-12-31' }
+    ]);
+    const savedSettings = JSON.parse(localStorage.getItem('groove_settings'));
+    if (savedSettings) setSettings(savedSettings);
+
+    return () => {
+      unsubOrders();
+      unsubProducts();
+    };
   }, []); 
 
-  // Função para atualizar status do pedido manualmente (Pix/Boleto)
+  // Atualizar Cupons Locais
+  useEffect(() => { if (coupons.length > 0) localStorage.setItem('groove_coupons', JSON.stringify(coupons)); }, [coupons]);
+
+  // Função para atualizar status do pedido manualmente
   const handleUpdateStatus = async (orderId, newStatus) => {
     try {
       const orderRef = doc(db, "pedidos", orderId);
       await updateDoc(orderRef, { status: newStatus });
-      
-      // Atualiza a lista na tela imediatamente
-      setOrders(orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
       if(selectedOrder) setSelectedOrder({ ...selectedOrder, status: newStatus });
-      
       alert(`✅ Status atualizado para ${newStatus}!`);
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
       alert("Erro ao atualizar status do pedido.");
     }
   };
-
-  // ==========================================
-  // GERENCIAMENTO DE DADOS LOCAIS (Produtos, Cupons)
-  // ==========================================
-  useEffect(() => {
-    setProducts(JSON.parse(localStorage.getItem('groove_products')) || [
-      { id: 'GN-P01', name: "Camiseta Oversized V1", price: 139.90, stock: 150, imgFront: '/produtos/frente.png', imgBack: '/produtos/verso.png' }
-    ]);
-
-    setCoupons(JSON.parse(localStorage.getItem('groove_coupons')) || [
-      { id: 1, code: 'SECRETGROOVE', discount: 15, validUntil: '2026-12-31' }
-    ]);
-
-    const savedSettings = JSON.parse(localStorage.getItem('groove_settings'));
-    if (savedSettings) setSettings(savedSettings);
-  }, []);
-
-  useEffect(() => { if (products.length > 0) localStorage.setItem('groove_products', JSON.stringify(products)); }, [products]);
-  useEffect(() => { if (coupons.length > 0) localStorage.setItem('groove_coupons', JSON.stringify(coupons)); }, [coupons]);
 
   // Utilitários
   const formatarData = (timestamp) => {
@@ -107,32 +95,41 @@ function AdminDashboard({ onLogout }) {
   const totalGanhos = orders.reduce((acc, order) => acc + (order.valorTotal || 0), 0);
 
   // ==========================================
-  // AÇÕES DE PRODUTOS
+  // AÇÕES DE PRODUTOS (AGORA SALVAM NO FIREBASE)
   // ==========================================
-  const handleSaveProduct = (e) => {
+  const handleSaveProduct = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    const newProduct = {
-      id: editingProduct ? editingProduct.id : `GN-P0${products.length + 1}`,
+    
+    const productId = editingProduct ? editingProduct.id : `GN-${Date.now()}`;
+    
+    const productData = {
       name: formData.get('name'),
       price: parseFloat(formData.get('price')),
       stock: parseInt(formData.get('stock')),
-      imgFront: formData.get('imgFront'), // Caminho da foto frontal
-      imgBack: formData.get('imgBack')    // Caminho da foto traseira
+      imgFront: formData.get('imgFront'),
+      imgBack: formData.get('imgBack') || "",
+      dataCriacao: editingProduct ? editingProduct.dataCriacao || new Date() : new Date()
     };
     
-    if (editingProduct) setProducts(products.map(p => p.id === editingProduct.id ? newProduct : p));
-    else setProducts([...products, newProduct]);
-    
-    setIsProductModalOpen(false);
-    setEditingProduct(null);
+    try {
+      await setDoc(doc(db, "produtos", productId), productData);
+      setIsProductModalOpen(false);
+      setEditingProduct(null);
+    } catch (error) {
+      console.error("Erro ao salvar produto:", error);
+      alert("Erro ao salvar produto na nuvem.");
+    }
   };
 
-  const handleDeleteProduct = (id) => {
-    if(window.confirm('Tem certeza que deseja excluir este produto?')) {
-      const newProducts = products.filter(p => p.id !== id);
-      setProducts(newProducts);
-      localStorage.setItem('groove_products', JSON.stringify(newProducts));
+  const handleDeleteProduct = async (id) => {
+    if(window.confirm('Tem certeza que deseja excluir este produto do servidor?')) {
+      try {
+        await deleteDoc(doc(db, "produtos", id));
+      } catch (error) {
+        console.error("Erro ao deletar produto:", error);
+        alert("Erro ao excluir produto.");
+      }
     }
   };
 
@@ -219,7 +216,6 @@ function AdminDashboard({ onLogout }) {
               <h2>Gerenciamento de Vendas</h2>
               <div className="header-stats">
                 <div className="stat-box"><span className="stat-label">Total Ganhos</span><span className="stat-value text-purple">R$ {totalGanhos.toFixed(2).replace('.', ',')}</span></div>
-                <button onClick={fetchOrders} className="action-btn text-xs mt-2" style={{padding: '8px 15px'}}>Atualizar Tabela</button>
               </div>
             </header>
             <section className="table-section">
@@ -286,14 +282,18 @@ function AdminDashboard({ onLogout }) {
         {activeTab === 'produtos' && (
           <div className="tab-fade-in">
             <header className="dashboard-header">
-              <h2>Catálogo e Estoque</h2>
+              <h2>Estoque Global (Nuvem)</h2>
               <button className="action-btn flex items-center gap-2" onClick={() => { setEditingProduct(null); setIsProductModalOpen(true); }}><Plus size={18} /> Novo Produto</button>
             </header>
             <section className="table-section">
               <table className="data-table">
                 <thead><tr><th>ID</th><th>Produto</th><th>Preço</th><th>Estoque</th><th>Status</th><th>Ações</th></tr></thead>
                 <tbody>
-                  {products.length === 0 ? (<tr><td colSpan="6" className="empty-state">Sem produtos.</td></tr>) : (
+                  {isLoadingProducts ? (
+                    <tr><td colSpan="6" className="empty-state">Carregando catálogo da nuvem...</td></tr>
+                  ) : products.length === 0 ? (
+                    <tr><td colSpan="6" className="empty-state">Sem produtos na nuvem. Cadastre seu primeiro Drop!</td></tr>
+                  ) : (
                     products.map((p) => (
                       <tr key={p.id}>
                         <td className="text-gray">{p.id}</td><td className="fw-bold text-white">{p.name}</td><td>R$ {p.price.toFixed(2)}</td><td className={p.stock < 10 ? 'text-red font-bold' : ''}>{p.stock} un.</td>
@@ -435,7 +435,7 @@ function AdminDashboard({ onLogout }) {
         <div className="admin-modal-overlay">
           <div className="admin-modal">
             <button className="close-modal" onClick={() => setIsProductModalOpen(false)}><X /></button>
-            <h3 className="modal-title">{editingProduct ? 'Editar Produto' : 'Novo Produto'}</h3>
+            <h3 className="modal-title">{editingProduct ? 'Editar Produto na Nuvem' : 'Novo Produto'}</h3>
             
             <form onSubmit={handleSaveProduct} className="modal-form">
               <div className="input-group">
@@ -456,17 +456,17 @@ function AdminDashboard({ onLogout }) {
 
               {/* CAMPOS DAS DUAS IMAGENS */}
               <div className="input-group" style={{marginTop: '20px'}}>
-                <label>Foto Frente (ex: /produtos/camisa-frente.png)</label>
+                <label>Foto Frente (ex: /produtos/1.png)</label>
                 <input name="imgFront" type="text" defaultValue={editingProduct?.imgFront} placeholder="/produtos/nome-da-foto.png" required />
               </div>
 
               <div className="input-group" style={{marginTop: '10px'}}>
-                <label>Foto Verso (ex: /produtos/camisa-verso.png)</label>
+                <label>Foto Verso (ex: /produtos/2.png)</label>
                 <input name="imgBack" type="text" defaultValue={editingProduct?.imgBack} placeholder="/produtos/nome-da-foto-verso.png" />
               </div>
 
               <button type="submit" className="action-btn w-full mt-6">
-                {editingProduct ? 'Salvar Alterações' : 'Criar Produto'}
+                {editingProduct ? 'Salvar Alterações no Banco' : 'Criar Produto na Nuvem'}
               </button>
             </form>
           </div>
