@@ -33,10 +33,12 @@ import AdminLogin from './AdminLogin';
 import logoGroove from './assets/groove.png';
 import MaintenanceView from './MaintenanceView';
 
+console.log("Minha chave do Stripe:", import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
 // ==========================================
 // CONFIGURAÇÕES DE PAGAMENTO (COLOQUE SUAS CHAVES AQUI)
 // ==========================================
-const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLIC_KEY);
+const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 
 // ==========================================
