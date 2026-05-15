@@ -115,7 +115,7 @@ const PrivacyView = () => {
 const TopAnnouncementBar = ({ show }) => {
   return (
     <div className={`fixed top-0 left-0 w-full h-10 bg-purple-600 z-[60] flex items-center justify-center transition-transform duration-300 ${show ? 'translate-y-0' : '-translate-y-full'}`}>
-      <div className="flex items-center gap-2 text-white text-xs font-bold tracking-[0.2em] uppercase"><Truck size={14} /> FRETE GRÁTIS ACIMA DE R$ 250,00 🇧🇷</div>
+      <div className="flex items-center gap-2 text-white text-xs font-bold tracking-[0.2em] uppercase"><Truck size={14} /> FRETE GRÁTIS PARA TODO BRASIL </div>
     </div>
   );
 };
@@ -337,11 +337,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
             {/* ETAPA 1: CARRINHO */}
             {!clientSecret && checkoutStep === 1 && (
               <>
-                <div className="p-6 bg-neutral-900/50 border-b border-neutral-800 shrink-0">
-                  <div className="flex justify-between text-[10px] font-bold mb-2 uppercase tracking-widest"><span className="text-gray-400">Meta Frete Grátis</span><span className="text-white">R$ 250,00</span></div>
-                  <div className="w-full h-1.5 bg-neutral-800 rounded-full overflow-hidden mb-3"><motion.div initial={{ width: 0 }} animate={{ width: `${progress}%` }} className={`h-full ${progress === 100 || isFreeShippingCoupon ? 'bg-green-500' : 'bg-purple-600'}`} /></div>
-                  <p className="text-center text-xs font-bold uppercase tracking-widest">{(progress === 100 || isFreeShippingCoupon) ? (<span className="text-green-400">VOCÊ GANHOU FRETE GRÁTIS</span>) : (<span className="text-gray-400">Faltam <span className="text-white">R$ {remaining.toFixed(2).replace('.', ',')}</span></span>)}</p>
-                </div>
                 
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   {cartItems.length === 0 ? (
