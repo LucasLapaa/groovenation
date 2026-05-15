@@ -704,14 +704,14 @@ const HomeView = ({ onAddToCart }) => {
           <div className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer">
             <img src="/produtos/1.png" alt="T-Shirts Groove Nation" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" />
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-              <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">T-Shirts</h3>
+              <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">OVERSIZED</h3>
               <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">COMPRAR</span>
             </div>
           </div>
           <div className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer">
             <img src="/produtos/34.png" alt="Cropped Groove Nation" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" />
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
-              <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">Cropped</h3>
+              <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">CROPPED</h3>
               <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">COMPRAR</span>
             </div>
           </div>
