@@ -1,19 +1,33 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-import emailjs from '@emailjs/browser';
-import { Menu, X, MessageCircle, Instagram, Facebook, Clock, ArrowUp, ShieldCheck, RefreshCw, Layers, Printer, Mail, CheckCircle, Loader2, Zap, Lock, ChevronDown, Terminal, Ruler, Ticket, Barcode, Cookie, CreditCard, Truck, ShoppingBag, Trash2, Plus, Minus, ArrowRight, Gift } from 'lucide-react';
 
-// --- IMPORTAÇÕES DO STRIPE ---
-import { loadStripe } from '@stripe/stripe-js';
-import { Elements, PaymentElement, useStripe, useElements, LinkAuthenticationElement, AddressElement } from '@stripe/react-stripe-js';
-
-// --- IMPORTAÇÕES DO FIREBASE (ATUALIZADAS) ---
-// Puxando tudo do seu arquivo firebase.js para não dar erro de duplicação
+// --- FIREBASE (Tudo em uma linha só para não dar erro) ---
+import { collection, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { db, functions } from './firebase'; 
 
-// --- IMPORTANDO COMPONENTES EXTERNOS ---
+// --- FRAMER MOTION ---
+import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
+
+// --- EMAIL JS ---
+import emailjs from '@emailjs/browser';
+
+// --- LUCIDE ICONS (Organizados) ---
+import { 
+  Menu, X, MessageCircle, Instagram, Facebook, Clock, ArrowUp, 
+  ShieldCheck, RefreshCw, Layers, Printer, Mail, CheckCircle, 
+  Loader2, Zap, Lock, ChevronDown, Terminal, Ruler, Ticket, 
+  Barcode, Cookie, CreditCard, Truck, ShoppingBag, Trash2, 
+  Plus, Minus, ArrowRight, Gift 
+} from 'lucide-react';
+
+// --- STRIPE ---
+import { loadStripe } from '@stripe/stripe-js';
+import { 
+  Elements, PaymentElement, useStripe, useElements, 
+  LinkAuthenticationElement, AddressElement 
+} from '@stripe/react-stripe-js';
+
+// --- COMPONENTES E ATIVOS ---
 import AdminDashboard from './AdminDashboard';
 import AdminLogin from './AdminLogin';
 import logoGroove from './assets/groove.png';
