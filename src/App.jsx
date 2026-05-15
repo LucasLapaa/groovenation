@@ -33,7 +33,7 @@ import AdminLogin from './AdminLogin';
 import logoGroove from './assets/groove.png';
 import MaintenanceView from './MaintenanceView';
 
-console.log("Minha chave do Stripe:", import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
+
 
 // ==========================================
 // CONFIGURAÇÕES DE PAGAMENTO (COLOQUE SUAS CHAVES AQUI)
@@ -82,7 +82,7 @@ const CheckoutForm = ({ total, onBack }) => {
           options={{ 
             layout: 'tabs', // 👈 FORÇA O MODO DE ABAS (Já vem aberto)
             fields: {
-              billingDetails: 'never' // 👈 PROÍBE O STRIPE DE PEDIR ENDEREÇO/CONTATO DE NOVO
+              
             }
           }} 
         />
