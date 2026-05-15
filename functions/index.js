@@ -5,7 +5,9 @@ const nodemailer = require("nodemailer"); // <-- O nosso novo carteiro
 
 admin.initializeApp();
 const db = admin.firestore();
+// Substitua o process.env pela chave colada diretamente:
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+//const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // Configuração do servidor de e-mail (Gmail)
 const transporter = nodemailer.createTransport({
@@ -24,18 +26,21 @@ exports.createPaymentIntent = functions.https.onCall(async (data, context) => {
     const valorRecebido = data.total || (data.data && data.data.total);
     const itensRecebidos = data.items || (data.data && data.data.items);
     
-    // 👇 Essa linha pega exatamente o botão que o cliente clicou no carrinho
-    const metodoEscolhido = data.method || (data.data && data.data.method) || ["card"]; 
+    // Pega o que veio do frontend (pode vir como "card", "boleto" ou ["card"])
+    let rawMethod = data.method || (data.data && data.data.method) || "card";
     
+    // FORÇAMOS a virar uma Array (lista), que é o que o Stripe exige
+    // Se vier "boleto", vira ["boleto"]. Se vier "card", vira ["card"].
+    const metodoEscolhido = Array.isArray(rawMethod) ? rawMethod : [rawMethod];
+
     if (!valorRecebido || isNaN(valorRecebido)) throw new Error("Valor do carrinho inválido.");
 
     const amount = Math.round(parseFloat(valorRecebido) * 100);
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: amount,
-      currency: "brl",
-      // 👇 E injeta a escolha aqui para o Stripe saber o que mostrar!
-      payment_method_types: metodoEscolhido, 
+      currency: "brl", // Obrigatório para Boleto no Brasil
+      payment_method_types: ["card"], // Agora sempre será uma lista []
       metadata: {
         produtos: itensRecebidos || "Itens não especificados",
         loja: "Groove Nation Official"
@@ -44,6 +49,7 @@ exports.createPaymentIntent = functions.https.onCall(async (data, context) => {
 
     return { clientSecret: paymentIntent.client_secret };
   } catch (error) {
+    console.error("Erro no Stripe:", error.message);
     throw new functions.https.HttpsError("internal", error.message);
   }
 });

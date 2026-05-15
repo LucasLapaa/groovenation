@@ -132,11 +132,14 @@ const TopAnnouncementBar = ({ show }) => {
 };
 
 // ==========================================
-// COMPONENTE: SIDEBAR DO CARRINHO (ATUALIZADO COM PIX)
+// COMPONENTE: SIDEBAR DO CARRINHO (3 ETAPAS)
 // ==========================================
 const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem }) => {
   const freeShippingThreshold = 250;
   
+  // Controle das Etapas: 1 = Carrinho | 2 = Dados | 3 = Pagamento
+  const [checkoutStep, setCheckoutStep] = useState(1); 
+
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponMessage, setCouponMessage] = useState({ text: '', type: '' });
@@ -144,10 +147,14 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
   const [clientSecret, setClientSecret] = useState(null);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
   
-  // NOVOS ESTADOS PARA O PIX
-  const [paymentMethod, setPaymentMethod] = useState('card'); // 'card' ou 'pix'
+  const [paymentMethod, setPaymentMethod] = useState('card');
   const [pixOrder, setPixOrder] = useState(null);
   const [isProcessingPix, setIsProcessingPix] = useState(false);
+
+  // NOVO: Estado para guardar os dados do cliente
+  const [customer, setCustomer] = useState({
+    nome: '', cpf: '', telefone: '', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', estado: ''
+  });
 
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   let discountValue = 0;
@@ -181,8 +188,39 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     setCouponMessage({ text: '', type: '' });
   };
 
+  // Lida com a digitação nos campos
+  const handleCustomerChange = (e) => {
+    setCustomer({ ...customer, [e.target.name]: e.target.value });
+  };
+
+  // Busca o CEP automaticamente na API dos Correios (ViaCEP)
+  const checkCEP = async (e) => {
+    const cep = e.target.value.replace(/\D/g, '');
+    if (cep.length === 8) {
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await res.json();
+        if (!data.erro) {
+          setCustomer(prev => ({
+            ...prev, rua: data.logradouro, bairro: data.bairro, cidade: data.localidade, estado: data.uf
+          }));
+        }
+      } catch (err) {
+        console.log(err);
+      }
+    }
+  };
+
+  // Valida os dados antes de ir para o pagamento
+  const goToPayment = () => {
+    if (!customer.nome || !customer.cpf || !customer.cep || !customer.rua || !customer.numero) {
+      alert("⚠️ Por favor, preencha todos os campos obrigatórios para entrega.");
+      return;
+    }
+    setCheckoutStep(3);
+  };
+
   // PAGAMENTO 1: STRIPE (CARTÃO)
-  
   const startCheckout = async () => {
     if (cartItems.length === 0) return;
     setIsInitializingPayment(true);
@@ -191,15 +229,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
       const itemsString = cartItems.map(item => `${item.quantity}x ${item.name} (Tam: G)`).join(', ');
 
       const totalParaEnvio = parseFloat(total.toFixed(2));
-      
-      // Define se vai abrir a tela de Cartão ou de Boleto no Stripe
-      const metodoStripe = paymentMethod === 'boleto' ? ['boleto'] : ['card'];
-
-      const result = await createPaymentIntent({ 
-        total: totalParaEnvio, 
-        items: itemsString,
-        method: metodoStripe // Enviando a escolha pro Firebase!
-      });
+      const result = await createPaymentIntent({ total: totalParaEnvio, items: itemsString, method: ['card'] });
       
       setClientSecret(result.data.clientSecret);
     } catch (error) {
@@ -210,43 +240,48 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     }
   };
 
-  // PAGAMENTO 2: PIX VIA WHATSAPP (DIRETO NO BANCO DE DADOS)
-  const handlePixCheckout = async () => {
+  // PAGAMENTO 2: PIX E BOLETO VIA WHATSAPP
+  const handleWhatsAppCheckout = async () => {
     if (cartItems.length === 0) return;
     setIsProcessingPix(true);
     
     try {
       const itemsString = cartItems.map(item => `${item.quantity}x ${item.name} (Tam: G)`).join(', ');
-      // Gera um ID aleatório de 6 números para o pedido Pix
-      const orderId = `PIX-${Math.floor(100000 + Math.random() * 900000)}`;
+      const prefix = paymentMethod === 'pix' ? 'PIX' : 'BOL';
+      const orderId = `${prefix}-${Math.floor(100000 + Math.random() * 900000)}`;
       const totalParaEnvio = parseFloat(total.toFixed(2));
+      const methodLabel = paymentMethod === 'pix' ? 'Pix' : 'Boleto';
 
-      // Salva direto na coleção "pedidos" para aparecer no Dashboard
+      const enderecoFormatado = `${customer.rua}, ${customer.numero} ${customer.complemento ? `(${customer.complemento})` : ''} - ${customer.bairro}, ${customer.cidade}-${customer.estado} | CEP: ${customer.cep}`;
+
+      // Salva no banco de dados COM OS DADOS DO CLIENTE
       await setDoc(doc(db, "pedidos", orderId), {
         pedidoId: orderId,
         valorTotal: totalParaEnvio,
-        status: "AGUARDANDO PIX",
+        status: `AGUARDANDO ${methodLabel.toUpperCase()}`,
         itens: itemsString,
-        email: "Pix pelo WhatsApp",
+        email: customer.nome, // Usamos a coluna de email para guardar o nome na tabela
+        cpf: customer.cpf,
+        telefone: customer.telefone,
+        endereco: enderecoFormatado,
         data: serverTimestamp()
       });
 
-      // Salva o pedido no estado para mostrar a tela de sucesso
-      setPixOrder({ id: orderId, total: totalParaEnvio, items: itemsString });
+      setPixOrder({ id: orderId, total: totalParaEnvio, items: itemsString, method: methodLabel, customer, enderecoFormatado });
       
     } catch (error) {
-      console.error("Erro ao gerar pedido PIX:", error);
+      console.error("Erro ao gerar pedido:", error);
       alert("Erro ao gerar pedido. Verifique sua conexão.");
     } finally {
       setIsProcessingPix(false);
     }
   };
 
-  // TELA DE SUCESSO DO PIX
+  // TELA DE SUCESSO DO PIX / BOLETO
   if (pixOrder) {
-    const WHATSAPP_NUMBER = "5516988265500"; // Coloque seu número aqui
-    const message = `Fala Groove Nation! ✌️\n\nAcabei de gerar o pedido *${pixOrder.id}* no site e quero fazer o pagamento via Pix.\n\n*Valor Total:* R$ ${pixOrder.total.toFixed(2).replace('.', ',')}\n*Itens:* ${pixOrder.items}`;
-    const wpLink = `https://wa.me/${5516988265500}?text=${encodeURIComponent(message)}`;
+    const WHATSAPP_NUMBER = "5516988265500";
+    const message = `Fala Groove Nation! ✌️\n\nAcabei de gerar o pedido *${pixOrder.id}* no site e quero finalizar via *${pixOrder.method}*.\n\n*Meus Dados:*\n👤 Nome: ${pixOrder.customer.nome}\n📦 Endereço: ${pixOrder.enderecoFormatado}\n\n*Valor Total:* R$ ${pixOrder.total.toFixed(2).replace('.', ',')}\n*Itens:* ${pixOrder.items}`;
+    const wpLink = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`;
 
     return (
       <AnimatePresence>
@@ -254,33 +289,31 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
           <>
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" />
             <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} className="fixed top-0 right-0 h-full w-full max-w-md z-[101] bg-neutral-950 border-l border-neutral-800 shadow-2xl flex flex-col justify-center items-center p-8 text-center">
-              <div className="bg-green-500/10 p-6 rounded-full border border-green-500/20 mb-6">
-                <Ticket className="text-green-500" size={48} />
-              </div>
+              <div className="bg-green-500/10 p-6 rounded-full border border-green-500/20 mb-6"><Ticket className="text-green-500" size={48} /></div>
               <h2 className="text-2xl font-black text-white italic tracking-widest uppercase mb-2">Pedido Gerado!</h2>
               <p className="text-gray-400 mb-6 text-sm">O seu pedido já está no nosso sistema.</p>
               
               <div className="bg-black w-full border border-neutral-800 rounded-lg p-6 mb-8">
-                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Código do Pedido</p>
+                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Código</p>
                 <p className="text-2xl font-black text-purple-500 tracking-widest">{pixOrder.id}</p>
                 <hr className="border-neutral-800 my-4" />
-                <p className="text-xs text-gray-500 uppercase tracking-widest font-bold mb-1">Valor Total</p>
                 <p className="text-xl font-bold text-white">R$ {pixOrder.total.toFixed(2).replace('.', ',')}</p>
               </div>
 
-              <p className="text-xs text-gray-400 mb-4 px-4 leading-relaxed">Para garantir suas peças e combinar a entrega, clique no botão abaixo para nos enviar o comprovante no WhatsApp.</p>
+              <p className="text-xs text-gray-400 mb-4 px-4 leading-relaxed">Para garantir suas peças e combinar a entrega, nos chame no WhatsApp clicando abaixo.</p>
 
-              <a href={wpLink} target="_blank" rel="noreferrer" onClick={() => { setPixOrder(null); onClose(); }} className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-4 rounded tracking-widest uppercase text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(34,197,94,0.3)]">
+              <a href={wpLink} target="_blank" rel="noreferrer" onClick={() => { setPixOrder(null); setCheckoutStep(1); onClose(); }} className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-4 rounded tracking-widest uppercase text-sm transition-all flex items-center justify-center gap-2 shadow-[0_0_20px_rgba(34,197,94,0.3)]">
                 CHAMAR NO WHATSAPP <ArrowRight size={16} />
               </a>
-              
-              <button onClick={() => setPixOrder(null)} className="mt-6 text-gray-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors">Voltar</button>
             </motion.div>
           </>
         )}
       </AnimatePresence>
     );
   }
+
+  // Títulos dinâmicos para o cabeçalho
+  const titulos = { 1: 'CARRINHO', 2: 'DADOS DE ENTREGA', 3: 'PAGAMENTO' };
 
   return (
     <AnimatePresence>
@@ -289,24 +322,31 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" />
           <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed top-0 right-0 h-full w-full max-w-md z-[101] bg-neutral-950 border-l border-neutral-800 shadow-2xl flex flex-col">
             
+            {/* CABEÇALHO */}
             <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-black shrink-0">
-              <h2 className="text-xl font-black text-white italic tracking-widest uppercase">{clientSecret ? 'CHECKOUT SEGURO' : 'CARRINHO'}</h2>
+              <div className="flex items-center gap-3">
+                {checkoutStep > 1 && !clientSecret && (
+                  <button onClick={() => setCheckoutStep(checkoutStep - 1)} className="text-gray-500 hover:text-white"><ArrowRight size={20} className="rotate-180"/></button>
+                )}
+                <h2 className="text-xl font-black text-white italic tracking-widest uppercase">{clientSecret ? 'CHECKOUT SEGURO' : titulos[checkoutStep]}</h2>
+              </div>
               <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors"><X size={28}/></button>
             </div>
             
-            {clientSecret ? (
+            {/* AMBIENTE STRIPE */}
+            {clientSecret && (
               <div className="p-6 flex-1 flex flex-col bg-neutral-900 overflow-hidden">
-                <div className="flex items-center justify-center gap-2 mb-4 text-purple-400 shrink-0">
-                  <Lock size={16} />
-                  <span className="text-xs font-bold tracking-[0.2em] uppercase">Ambiente Criptografado</span>
-                </div>
+                <div className="flex items-center justify-center gap-2 mb-4 text-purple-400 shrink-0"><Lock size={16} /><span className="text-xs font-bold tracking-[0.2em] uppercase">Ambiente Criptografado</span></div>
                 <div className="flex-1 overflow-hidden">
                   <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#9333ea' } } }}>
                     <CheckoutForm total={total} onBack={() => setClientSecret(null)} />
                   </Elements>
                 </div>
               </div>
-            ) : (
+            )}
+
+            {/* ETAPA 1: CARRINHO */}
+            {!clientSecret && checkoutStep === 1 && (
               <>
                 <div className="p-6 bg-neutral-900/50 border-b border-neutral-800 shrink-0">
                   <div className="flex justify-between text-[10px] font-bold mb-2 uppercase tracking-widest"><span className="text-gray-400">Meta Frete Grátis</span><span className="text-white">R$ 250,00</span></div>
@@ -349,63 +389,102 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                           <button onClick={handleApplyCoupon} className="bg-neutral-800 hover:bg-neutral-700 text-white font-bold px-4 rounded text-xs border border-neutral-700 uppercase tracking-widest">Aplicar</button>
                         </div>
                       ) : (
-                        <div className="flex justify-between items-center bg-purple-500/10 border border-purple-500/30 rounded p-3">
-                          <span className="text-purple-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2"><Ticket size={14}/> {appliedCoupon.code}</span>
-                          <button onClick={removeCoupon} className="text-gray-400 hover:text-white"><X size={14}/></button>
-                        </div>
+                        <div className="flex justify-between items-center bg-purple-500/10 border border-purple-500/30 rounded p-3"><span className="text-purple-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2"><Ticket size={14}/> {appliedCoupon.code}</span><button onClick={removeCoupon} className="text-gray-400 hover:text-white"><X size={14}/></button></div>
                       )}
                     </div>
-
-                    <div className="space-y-2 pt-2 border-t border-neutral-800/50">
-                      <div className="flex justify-between items-center mt-2"><span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span><span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span></div>
-                    </div>
-
-                    {/* SELETOR DE FORMA DE PAGAMENTO EM 3 BOTÕES */}
-                    <div className="flex flex-col gap-2 mt-2">
-                      <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">Selecione a forma de pagamento</label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <button onClick={() => setPaymentMethod('card')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'card' ? 'border-purple-500 bg-purple-500/10 text-purple-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>
-                          💳 Cartão
-                        </button>
-                        <button onClick={() => setPaymentMethod('boleto')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'boleto' ? 'border-white bg-white/10 text-white' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>
-                          📄 Boleto
-                        </button>
-                        <button onClick={() => setPaymentMethod('pix')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'pix' ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>
-                          💠 Pix
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* AVISO DO PIX */}
-                    {paymentMethod === 'pix' && (
-                      <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded text-center">
-                        <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">⚠️ Pagamentos via Pix são finalizados direto no nosso WhatsApp para conferência do comprovante e agilização do envio.</p>
-                      </div>
-                    )}
-
-                    {/* BOTÃO FINAL DINÂMICO */}
-                  
-                    {paymentMethod === 'card' && (
-                      <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-purple-600 hover:bg-purple-500 text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-70">
-                        {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'PAGAR COM CARTÃO'} <ArrowRight size={16} />
-                      </button>
-                    )}
-                    
-                    {paymentMethod === 'boleto' && (
-                      <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-white hover:bg-gray-200 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-70">
-                        {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'GERAR BOLETO'} <ArrowRight size={16} />
-                      </button>
-                    )}
-
-                    {paymentMethod === 'pix' && (
-                      <button onClick={handlePixCheckout} disabled={isProcessingPix} className="w-full bg-green-500 hover:bg-green-400 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2 disabled:opacity-70 shadow-[0_0_15px_rgba(34,197,94,0.2)]">
-                        {isProcessingPix ? <Loader2 className="animate-spin" size={20} /> : 'GERAR PEDIDO PIX'} <ArrowRight size={16} />
-                      </button>
-                    )}
-
+                    <div className="flex justify-between items-center mt-2 pt-4 border-t border-neutral-800/50"><span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span><span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span></div>
+                    <button onClick={() => setCheckoutStep(2)} className="w-full bg-white hover:bg-purple-600 text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2">
+                      CONTINUAR <ArrowRight size={16} />
+                    </button>
                   </div>
                 )}
               </>
+            )}
+
+            {/* ETAPA 2: DADOS DE ENTREGA */}
+            {!clientSecret && checkoutStep === 2 && (
+              <>
+                <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                  <div className="space-y-3">
+                    <input name="nome" value={customer.nome} onChange={handleCustomerChange} placeholder="Nome Completo *" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input name="cpf" value={customer.cpf} onChange={handleCustomerChange} placeholder="CPF *" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                      <input name="telefone" value={customer.telefone} onChange={handleCustomerChange} placeholder="Telefone/WhatsApp" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                    </div>
+                    
+                    <h3 className="text-gray-500 text-xs font-bold uppercase tracking-widest pt-4 pb-1">Endereço</h3>
+                    <input name="cep" value={customer.cep} onChange={handleCustomerChange} onBlur={checkCEP} placeholder="CEP * (Digite para buscar)" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                    
+                    <div className="grid grid-cols-3 gap-3">
+                      <input name="rua" value={customer.rua} onChange={handleCustomerChange} placeholder="Rua *" className="col-span-2 w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                      <input name="numero" value={customer.numero} onChange={handleCustomerChange} placeholder="Nº *" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                    </div>
+                    
+                    <input name="complemento" value={customer.complemento} onChange={handleCustomerChange} placeholder="Complemento (Ap, Bloco...)" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                      <input name="bairro" value={customer.bairro} onChange={handleCustomerChange} placeholder="Bairro" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                      <div className="grid grid-cols-3 gap-2">
+                        <input name="cidade" value={customer.cidade} onChange={handleCustomerChange} placeholder="Cidade" className="col-span-2 w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                        <input name="estado" value={customer.estado} onChange={handleCustomerChange} placeholder="UF" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors uppercase text-center" maxLength={2} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-6 bg-black border-t border-neutral-800 shrink-0">
+                  <button onClick={goToPayment} className="w-full bg-white hover:bg-purple-600 text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2">
+                    IR PARA PAGAMENTO <ArrowRight size={16} />
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ETAPA 3: FORMA DE PAGAMENTO */}
+            {!clientSecret && checkoutStep === 3 && (
+              <div className="flex-1 flex flex-col">
+                <div className="p-6 flex-1 overflow-y-auto">
+                  <div className="bg-neutral-900/50 border border-neutral-800 p-4 rounded-lg mb-6">
+                    <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Entregar para:</p>
+                    <p className="text-white text-sm font-bold">{customer.nome}</p>
+                    <p className="text-gray-400 text-xs mt-1">{customer.rua}, {customer.numero} - {customer.cidade}/{customer.estado}</p>
+                  </div>
+
+                  <div className="flex flex-col gap-3">
+                    <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">Selecione a forma de pagamento</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      <button onClick={() => setPaymentMethod('card')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'card' ? 'border-purple-500 bg-purple-500/10 text-purple-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>💳 Cartão</button>
+                      <button onClick={() => setPaymentMethod('boleto')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'boleto' ? 'border-white bg-white/10 text-white' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>📄 Boleto</button>
+                      <button onClick={() => setPaymentMethod('pix')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'pix' ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>💠 Pix</button>
+                    </div>
+                  </div>
+
+                  {(paymentMethod === 'pix' || paymentMethod === 'boleto') && (
+                    <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded text-center mt-4">
+                      <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">⚠️ Pagamentos via {paymentMethod === 'pix' ? 'Pix' : 'Boleto'} são gerados e finalizados direto no nosso WhatsApp para agilizar o envio.</p>
+                    </div>
+                  )}
+                </div>
+
+                <div className="p-6 bg-black border-t border-neutral-800 shrink-0">
+                  <div className="flex justify-between items-center mb-4"><span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span><span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span></div>
+                  
+                  {paymentMethod === 'card' && (
+                    <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-purple-600 hover:bg-purple-500 text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70">
+                      {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'PAGAR COM CARTÃO'} <ArrowRight size={16} />
+                    </button>
+                  )}
+                  {paymentMethod === 'boleto' && (
+                    <button onClick={handleWhatsAppCheckout} disabled={isProcessingPix} className="w-full bg-white hover:bg-gray-200 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70">
+                      {isProcessingPix ? <Loader2 className="animate-spin" size={20} /> : 'GERAR PEDIDO BOLETO'} <ArrowRight size={16} />
+                    </button>
+                  )}
+                  {paymentMethod === 'pix' && (
+                    <button onClick={handleWhatsAppCheckout} disabled={isProcessingPix} className="w-full bg-green-500 hover:bg-green-400 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_0_15px_rgba(34,197,94,0.2)]">
+                      {isProcessingPix ? <Loader2 className="animate-spin" size={20} /> : 'GERAR PEDIDO PIX'} <ArrowRight size={16} />
+                    </button>
+                  )}
+                </div>
+              </div>
             )}
           </motion.div>
         </>
@@ -497,12 +576,25 @@ const SpinAndWin = () => {
 // ==========================================
 // HOME VIEW E APP PRINCIPAL
 // ==========================================
+// ==========================================
+// COMPONENTE: VISUALIZAÇÃO HOME (VITRINE)
+// ==========================================
 const HomeView = ({ onAddToCart }) => {
+  // Puxa os produtos do localStorage ou usa o padrão se estiver vazio
   const products = JSON.parse(localStorage.getItem('groove_products')) || defaultProducts;
+
   return (
     <div className="bg-neutral-950">
+      {/* HERO SECTION (BANNER PRINCIPAL) */}
       <section className="relative h-[95vh] w-full flex items-center justify-center overflow-hidden">
-        <div className="absolute inset-0 z-0"><img src="https://images.unsplash.com/photo-1516826957135-700ede19c6ce?q=80&w=2070&auto=format&fit=crop" alt="Coleção Groove" className="w-full h-full object-cover opacity-60" /><div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/20 to-neutral-950/60" /></div>
+        <div className="absolute inset-0 z-0">
+          <img 
+            src="https://images.unsplash.com/photo-1516826957135-700ede19c6ce?q=80&w=2070&auto=format&fit=crop" 
+            alt="Coleção Groove" 
+            className="w-full h-full object-cover opacity-60" 
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/20 to-neutral-950/60" />
+        </div>
         <div className="relative z-10 text-center px-4 w-full flex flex-col items-center mt-20">
           <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="text-purple-400 font-bold tracking-[0.4em] text-xs md:text-sm uppercase mb-4 border border-purple-500/30 px-4 py-1.5 bg-black/50 backdrop-blur-sm rounded-full">Nova Coleção • Inverno 26</motion.p>
           <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="text-6xl md:text-8xl lg:text-[9rem] font-black tracking-tighter uppercase italic text-white drop-shadow-2xl leading-[0.85] mb-8">FORJANDO <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-white">O SHAPE.</span></motion.h1>
@@ -510,29 +602,86 @@ const HomeView = ({ onAddToCart }) => {
         </div>
       </section>
 
+      {/* LETREIRO INFINITO (TICKER) */}
       <div className="w-full bg-purple-600 py-3 overflow-hidden whitespace-nowrap flex items-center border-y border-purple-400">
         <motion.div className="flex gap-10 items-center font-black uppercase tracking-widest text-xs" animate={{ x: [0, -1000] }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }}>
           {[...Array(10)].map((_, i) => (<React.Fragment key={i}><span className="text-white">NO PAIN NO GAIN</span><span className="text-black text-[8px]">✦</span><span className="text-white">GROOVE NATION</span><span className="text-black text-[8px]">✦</span></React.Fragment>))}
         </motion.div>
       </div>
 
+      {/* VITRINE DE PRODUTOS */}
       <section id="vitrine" className="max-w-7xl mx-auto px-4 py-24">
-        <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-neutral-800 pb-6"><div><h2 className="text-4xl md:text-5xl font-black uppercase italic tracking-tighter text-white">Últimos Drops</h2><p className="text-neutral-500 tracking-[0.2em] text-xs mt-2 uppercase font-bold">Equipamento pesado para o dia a dia</p></div></div>
+        <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-neutral-800 pb-6">
+          <div>
+            <h2 className="text-4xl md:text-5xl font-black uppercase italic tracking-tighter text-white">Últimos Drops</h2>
+            <p className="text-neutral-500 tracking-[0.2em] text-xs mt-2 uppercase font-bold">Equipamento pesado para o dia a dia</p>
+          </div>
+        </div>
+        
+        {/* GRID DE PRODUTOS */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {products.slice(0,4).map((product) => (
-            <motion.div key={product.id} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="group relative flex flex-col">
-              <div className="relative aspect-[3/4] bg-neutral-900 mb-4 overflow-hidden rounded-sm cursor-pointer border border-neutral-800 group-hover:border-purple-500/50 transition-colors">
-                {product.tag && (<div className="absolute top-3 left-3 z-20 bg-white text-black text-[9px] font-black px-3 py-1 uppercase tracking-widest shadow-lg">{product.tag}</div>)}
-                <img src={product.img} alt={product.name} className="absolute inset-0 w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700" />
-                <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-20"><button onClick={() => onAddToCart(product)} disabled={product.stock <= 0} className={`w-full font-black text-xs py-4 uppercase tracking-widest transition-colors ${product.stock > 0 ? 'bg-purple-600 text-white hover:bg-white hover:text-black' : 'bg-neutral-950/80 text-gray-500 backdrop-blur-md cursor-not-allowed'}`}>{product.stock > 0 ? 'Adicionar ao Carrinho' : 'Esgotado'}</button></div>
+          {products.slice(0,8).map((product) => (
+            <motion.div 
+              key={product.id} 
+              initial={{ opacity: 0, y: 20 }} 
+              whileInView={{ opacity: 1, y: 0 }} 
+              viewport={{ once: true }} 
+              className="group relative flex flex-col"
+            >
+              {/* 👇 CONTAINER DA IMAGEM COM AS NOVAS BORDAS ROXAS 👇 */}
+              {/* Mudanças: border-purple-900 (borda fina constante) e group-hover:border-purple-500 (brilha no hover) */}
+              <div className="relative aspect-[3/4] bg-neutral-900 mb-4 overflow-hidden rounded-sm cursor-pointer border border-purple-900 group-hover:border-purple-500 transition-all duration-500 group-hover:shadow-[0_0_15px_rgba(147,51,234,0.3)]">
+                
+                {product.tag && (
+                  <div className="absolute top-3 left-3 z-20 bg-white text-black text-[9px] font-black px-3 py-1 uppercase tracking-widest shadow-lg">
+                    {product.tag}
+                  </div>
+                )}
+                
+                {/* Lógica de Imagem Dupla (Frente/Verso) mantida */}
+                {/* Imagem da Frente */}
+                <img 
+                  src={product.imgFront || product.img} 
+                  alt={product.name} 
+                  className={`absolute inset-0 w-full h-full object-cover opacity-90 transition-all duration-700 z-10 ${product.imgBack ? 'group-hover:opacity-0' : 'group-hover:opacity-100 group-hover:scale-105'}`} 
+                />
+                
+                {/* Imagem do Verso */}
+                {product.imgBack && (
+                  <img 
+                    src={product.imgBack} 
+                    alt={`${product.name} - Verso`} 
+                    className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 z-15" 
+                  />
+                )}
+                
+                {/* Botão Adicionar e Degradê */}
+                <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-20">
+                  <button 
+                    onClick={() => onAddToCart(product)} 
+                    disabled={product.stock <= 0} 
+                    className={`w-full font-black text-xs py-4 uppercase tracking-widest transition-colors ${product.stock > 0 ? 'bg-purple-600 text-white hover:bg-white hover:text-black' : 'bg-neutral-950/80 text-gray-500 backdrop-blur-md cursor-not-allowed'}`}
+                  >
+                    {product.stock > 0 ? 'Adicionar ao Carrinho' : 'Esgotado'}
+                  </button>
+                </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
               </div>
-              <div className="flex flex-col px-1"><h4 className="font-bold text-sm text-neutral-300 uppercase tracking-widest">{product.name}</h4><div className="flex items-center justify-between mt-2"><span className="font-black text-white text-lg">R$ {product.price.toFixed(2).replace('.', ',')}</span>{product.stock <= 5 && product.stock > 0 && <span className="text-[9px] text-red-500 font-bold uppercase tracking-wider animate-pulse">Últimas Unidades</span>}</div></div>
+              
+              {/* Textos do Produto (Nome e Preço) */}
+              <div className="flex flex-col px-1">
+                <h4 className="font-bold text-sm text-neutral-300 uppercase tracking-widest">{product.name}</h4>
+                <div className="flex items-center justify-between mt-2">
+                  <span className="font-black text-white text-lg">R$ {product.price.toFixed(2).replace('.', ',')}</span>
+                  {product.stock <= 5 && product.stock > 0 && <span className="text-[9px] text-red-500 font-bold uppercase tracking-wider animate-pulse">Últimas Unidades</span>}
+                </div>
+              </div>
             </motion.div>
           ))}
         </div>
       </section>
 
+      {/* SEÇÃO CATEGORIAS DESTAQUE */}
       <section className="py-12 bg-black border-y border-neutral-900">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-4 h-[600px]">
           <div className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer"><img src="https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?q=80&w=2080&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" /><div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors"><h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">T-Shirts</h3><span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">COMPRAR</span></div></div>
