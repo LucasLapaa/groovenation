@@ -95,7 +95,7 @@ function AdminDashboard({ onLogout }) {
   const totalGanhos = orders.reduce((acc, order) => acc + (order.valorTotal || 0), 0);
 
   // ==========================================
-  // AÇÕES DE PRODUTOS (AGORA SALVAM NO FIREBASE)
+  // AÇÕES DE PRODUTOS (FIREBASE + CATEGORIAS)
   // ==========================================
   const handleSaveProduct = async (e) => {
     e.preventDefault();
@@ -107,6 +107,7 @@ function AdminDashboard({ onLogout }) {
       name: formData.get('name'),
       price: parseFloat(formData.get('price')),
       stock: parseInt(formData.get('stock')),
+      category: formData.get('category'), // Salvando a categoria (Oversized/Cropped/Drops)
       imgFront: formData.get('imgFront'),
       imgBack: formData.get('imgBack') || "",
       dataCriacao: editingProduct ? editingProduct.dataCriacao || new Date() : new Date()
@@ -287,7 +288,7 @@ function AdminDashboard({ onLogout }) {
             </header>
             <section className="table-section">
               <table className="data-table">
-                <thead><tr><th>ID</th><th>Produto</th><th>Preço</th><th>Estoque</th><th>Status</th><th>Ações</th></tr></thead>
+                <thead><tr><th>Produto</th><th>Categoria</th><th>Preço</th><th>Estoque</th><th>Status</th><th>Ações</th></tr></thead>
                 <tbody>
                   {isLoadingProducts ? (
                     <tr><td colSpan="6" className="empty-state">Carregando catálogo da nuvem...</td></tr>
@@ -296,9 +297,19 @@ function AdminDashboard({ onLogout }) {
                   ) : (
                     products.map((p) => (
                       <tr key={p.id}>
-                        <td className="text-gray">{p.id}</td><td className="fw-bold text-white">{p.name}</td><td>R$ {p.price.toFixed(2)}</td><td className={p.stock < 10 ? 'text-red font-bold' : ''}>{p.stock} un.</td>
+                        <td className="fw-bold text-white">{p.name}</td>
+                        <td className="text-purple uppercase text-[10px] tracking-widest font-bold">
+                          {p.category === 'oversized' ? 'Oversized' : p.category === 'cropped' ? 'Cropped' : 'Últimos Drops'}
+                        </td>
+                        <td>R$ {p.price.toFixed(2)}</td>
+                        <td className={p.stock < 10 ? 'text-red font-bold' : ''}>{p.stock} un.</td>
                         <td><span className={`status-badge status-${p.stock > 0 ? 'entregue' : 'esgotado'}`}>{p.stock > 0 ? 'Em Estoque' : 'Esgotado'}</span></td>
-                        <td><div className="action-icons"><button onClick={() => { setEditingProduct(p); setIsProductModalOpen(true); }} className="icon-btn edit"><Edit2 size={16}/></button><button onClick={() => handleDeleteProduct(p.id)} className="icon-btn delete"><Trash2 size={16}/></button></div></td>
+                        <td>
+                          <div className="action-icons">
+                            <button onClick={() => { setEditingProduct(p); setIsProductModalOpen(true); }} className="icon-btn edit"><Edit2 size={16}/></button>
+                            <button onClick={() => handleDeleteProduct(p.id)} className="icon-btn delete"><Trash2 size={16}/></button>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   )}
@@ -443,14 +454,25 @@ function AdminDashboard({ onLogout }) {
                 <input name="name" type="text" defaultValue={editingProduct?.name} placeholder="Ex: T-Shirt Oversized Black" required />
               </div>
               
-              <div className="settings-grid" style={{marginTop: '20px'}}>
-                <div className="input-group">
+              {/* CAMPO NOVO DE CATEGORIA */}
+              <div className="input-group" style={{marginTop: '15px'}}>
+                <label>Onde este produto vai aparecer?</label>
+                <select name="category" defaultValue={editingProduct?.category || 'drops'} required style={{width: '100%', padding: '12px', backgroundColor: '#0a0a0a', border: '1px solid #262626', color: 'white', borderRadius: '6px', outline: 'none'}}>
+                  <option value="drops">Vitrine Inicial (Últimos Drops)</option>
+                  <option value="oversized">Página Oversized</option>
+                  <option value="cropped">Página Cropped</option>
+                </select>
+              </div>
+
+             {/* CORREÇÃO DO LAYOUT LADO A LADO */}
+              <div style={{ display: 'flex', gap: '15px', marginTop: '20px', width: '100%' }}>
+                <div className="input-group" style={{ flex: 1, minWidth: 0 }}>
                   <label>Preço (R$)</label>
-                  <input name="price" type="number" step="0.01" defaultValue={editingProduct?.price} required />
+                  <input name="price" type="number" step="0.01" defaultValue={editingProduct?.price} required style={{ width: '100%', boxSizing: 'border-box' }} />
                 </div>
-                <div className="input-group">
+                <div className="input-group" style={{ flex: 1, minWidth: 0 }}>
                   <label>Estoque Inicial</label>
-                  <input name="stock" type="number" defaultValue={editingProduct?.stock || 0} required />
+                  <input name="stock" type="number" defaultValue={editingProduct?.stock || 0} required style={{ width: '100%', boxSizing: 'border-box' }} />
                 </div>
               </div>
 

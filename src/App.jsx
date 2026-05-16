@@ -575,17 +575,16 @@ const SpinAndWin = () => {
 
 
 // ==========================================
-// COMPONENTE: VISUALIZAÇÃO HOME (VITRINE)
+// COMPONENTE: VISUALIZAÇÃO HOME E CATEGORIAS (VITRINE)
 // ==========================================
-const HomeView = ({ onAddToCart }) => {
-  // 1. ESTADOS PARA O FIREBASE: Substituímos o localStorage por variáveis de nuvem
+// 👇 Agora recebemos currentView e setCurrentView direto do App
+const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // 2. CONEXÃO COM O BANCO: Busca os produtos em tempo real
+  // CONEXÃO COM O BANCO: Busca os produtos em tempo real
   useEffect(() => {
     const q = query(collection(db, "produtos"), orderBy("dataCriacao", "desc"));
-    
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const listaProdutos = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -598,17 +597,113 @@ const HomeView = ({ onAddToCart }) => {
     return () => unsubscribe();
   }, []);
 
+  // FILTRAGEM DOS PRODUTOS POR CATEGORIA
+  const dropsProducts = products.filter(p => p.category === 'drops' || !p.category);
+  const oversizedProducts = products.filter(p => p.category === 'oversized');
+  const croppedProducts = products.filter(p => p.category === 'cropped');
+
+  // FUNÇÃO REUTILIZÁVEL PARA RENDERIZAR O CARD DO PRODUTO
+  const renderProductCard = (product) => (
+    <motion.div 
+      key={product.id} 
+      initial={{ opacity: 0, y: 20 }} 
+      whileInView={{ opacity: 1, y: 0 }} 
+      viewport={{ once: true }} 
+      className="group relative flex flex-col"
+    >
+      <div className="relative aspect-[3/4] bg-neutral-900 mb-4 overflow-hidden rounded-sm cursor-pointer border border-purple-900 group-hover:border-purple-500 transition-all duration-500 group-hover:shadow-[0_0_15px_rgba(147,51,234,0.3)]">
+        
+        {product.tag && (
+          <div className="absolute top-3 left-3 z-20 bg-white text-black text-[9px] font-black px-3 py-1 uppercase tracking-widest shadow-lg">
+            {product.tag}
+          </div>
+        )}
+        
+        <img 
+          src={product.imgFront || product.img} 
+          alt={product.name} 
+          className={`absolute inset-0 w-full h-full object-cover opacity-90 transition-all duration-700 z-10 ${product.imgBack ? 'group-hover:opacity-0' : 'group-hover:opacity-100 group-hover:scale-105'}`} 
+        />
+        
+        {product.imgBack && (
+          <img 
+            src={product.imgBack} 
+            alt={`${product.name} - Verso`} 
+            className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 z-15" 
+          />
+        )}
+        
+        <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-20">
+          <button 
+            onClick={() => onAddToCart(product)} 
+            disabled={product.stock <= 0} 
+            className={`w-full font-black text-xs py-4 uppercase tracking-widest transition-colors ${product.stock > 0 ? 'bg-purple-600 text-white hover:bg-white hover:text-black' : 'bg-neutral-950/80 text-gray-500 backdrop-blur-md cursor-not-allowed'}`}
+          >
+            {product.stock > 0 ? 'Adicionar ao Carrinho' : 'Esgotado'}
+          </button>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
+      </div>
+      
+      <div className="flex flex-col px-1">
+        <h4 className="font-bold text-sm text-neutral-300 uppercase tracking-widest">{product.name}</h4>
+        <div className="flex items-center justify-between mt-2">
+          <span className="font-black text-white text-lg">R$ {product.price?.toFixed(2).replace('.', ',')}</span>
+          {product.stock <= 5 && product.stock > 0 && <span className="text-[9px] text-red-500 font-bold uppercase tracking-wider animate-pulse">Últimas Unidades</span>}
+        </div>
+      </div>
+    </motion.div>
+  );
+
+  // ==========================================
+  // ABA DE CATEGORIA ESPECÍFICA (Oversized ou Cropped)
+  // ==========================================
+  if (currentView !== 'home') {
+    const isOversized = currentView === 'oversized';
+    const activeProducts = isOversized ? oversizedProducts : croppedProducts;
+
+    return (
+      <div className="bg-neutral-950 min-h-screen pt-32 pb-24 px-4 animate-fade-in">
+        <div className="max-w-7xl mx-auto">
+          {/* BOTÃO VOLTAR */}
+          <button 
+            onClick={() => setCurrentView('home')} 
+            className="flex items-center gap-2 text-purple-500 hover:text-white uppercase font-bold text-xs tracking-widest mb-10 transition-colors"
+          >
+            <ArrowRight className="rotate-180" size={16} /> Voltar para o Início
+          </button>
+          
+          <h2 className="text-5xl md:text-7xl font-black uppercase italic tracking-tighter text-white mb-4">
+            {isOversized ? 'Coleção Oversized' : 'Coleção Cropped'}
+          </h2>
+          <p className="text-gray-500 uppercase tracking-[0.2em] text-xs font-bold mb-12 border-b border-neutral-800 pb-6">
+            Equipamento pesado e exclusivo Groove Nation.
+          </p>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {isLoading ? (
+               <div className="col-span-full py-20 text-center text-purple-500 text-xs animate-pulse tracking-widest uppercase">Carregando Estoque...</div>
+            ) : activeProducts.length === 0 ? (
+               <div className="col-span-full py-20 text-center text-gray-500 text-xs font-bold tracking-widest uppercase">Nenhuma peça nesta categoria ainda.</div>
+            ) : (
+               activeProducts.map(renderProductCard)
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // PÁGINA INICIAL (HOME)
+  // ==========================================
   return (
     <div className="bg-neutral-950">
       
-      {/* HERO SECTION (BANNER PRINCIPAL) */}
+      {/* HERO SECTION */}
       <section className="relative h-[95vh] w-full flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img 
-            src="https://images.unsplash.com/photo-1516826957135-700ede19c6ce?q=80&w=2070&auto=format&fit=crop" 
-            alt="Coleção Groove" 
-            className="w-full h-full object-cover opacity-60" 
-          />
+          <img src="https://images.unsplash.com/photo-1516826957135-700ede19c6ce?q=80&w=2070&auto=format&fit=crop" alt="Coleção Groove" className="w-full h-full object-cover opacity-60" />
           <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/20 to-neutral-950/60" />
         </div>
         <div className="relative z-10 text-center px-4 w-full flex flex-col items-center mt-20">
@@ -618,14 +713,14 @@ const HomeView = ({ onAddToCart }) => {
         </div>
       </section>
 
-      {/* LETREIRO INFINITO (TICKER) */}
+      {/* TICKER */}
       <div className="w-full bg-purple-600 py-3 overflow-hidden whitespace-nowrap flex items-center border-y border-purple-400">
         <motion.div className="flex gap-10 items-center font-black uppercase tracking-widest text-xs" animate={{ x: [0, -1000] }} transition={{ duration: 15, repeat: Infinity, ease: "linear" }}>
           {[...Array(10)].map((_, i) => (<React.Fragment key={i}><span className="text-white">NO PAIN NO GAIN</span><span className="text-black text-[8px]">✦</span><span className="text-white">GROOVE NATION</span><span className="text-black text-[8px]">✦</span></React.Fragment>))}
         </motion.div>
       </div>
 
-      {/* VITRINE DE PRODUTOS */}
+      {/* VITRINE (Apenas Últimos Drops) */}
       <section id="vitrine" className="max-w-7xl mx-auto px-4 py-24">
         <div className="flex flex-col md:flex-row justify-between items-end mb-12 border-b border-neutral-800 pb-6">
           <div>
@@ -634,87 +729,37 @@ const HomeView = ({ onAddToCart }) => {
           </div>
         </div>
         
-        {/* GRID DE PRODUTOS (AGORA LÊ DA NUVEM) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          
           {isLoading ? (
              <div className="col-span-full text-center py-20"><p className="text-purple-500 animate-pulse font-bold tracking-[0.3em] text-xs uppercase">Buscando Estoque na Nuvem...</p></div>
-          ) : products.length === 0 ? (
-             <div className="col-span-full text-center py-20"><p className="text-gray-500 font-bold tracking-widest text-xs uppercase">Nenhum produto cadastrado.</p></div>
+          ) : dropsProducts.length === 0 ? (
+             <div className="col-span-full text-center py-20"><p className="text-gray-500 font-bold tracking-widest text-xs uppercase">Nenhum produto cadastrado nos drops.</p></div>
           ) : (
-            products.slice(0,8).map((product) => (
-              <motion.div 
-                key={product.id} 
-                initial={{ opacity: 0, y: 20 }} 
-                whileInView={{ opacity: 1, y: 0 }} 
-                viewport={{ once: true }} 
-                className="group relative flex flex-col"
-              >
-                <div className="relative aspect-[3/4] bg-neutral-900 mb-4 overflow-hidden rounded-sm cursor-pointer border border-purple-900 group-hover:border-purple-500 transition-all duration-500 group-hover:shadow-[0_0_15px_rgba(147,51,234,0.3)]">
-                  
-                  {product.tag && (
-                    <div className="absolute top-3 left-3 z-20 bg-white text-black text-[9px] font-black px-3 py-1 uppercase tracking-widest shadow-lg">
-                      {product.tag}
-                    </div>
-                  )}
-                  
-                  <img 
-                    src={product.imgFront || product.img} 
-                    alt={product.name} 
-                    className={`absolute inset-0 w-full h-full object-cover opacity-90 transition-all duration-700 z-10 ${product.imgBack ? 'group-hover:opacity-0' : 'group-hover:opacity-100 group-hover:scale-105'}`} 
-                  />
-                  
-                  {product.imgBack && (
-                    <img 
-                      src={product.imgBack} 
-                      alt={`${product.name} - Verso`} 
-                      className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 z-15" 
-                    />
-                  )}
-                  
-                  <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-20">
-                    <button 
-                      onClick={() => onAddToCart(product)} 
-                      disabled={product.stock <= 0} 
-                      className={`w-full font-black text-xs py-4 uppercase tracking-widest transition-colors ${product.stock > 0 ? 'bg-purple-600 text-white hover:bg-white hover:text-black' : 'bg-neutral-950/80 text-gray-500 backdrop-blur-md cursor-not-allowed'}`}
-                    >
-                      {product.stock > 0 ? 'Adicionar ao Carrinho' : 'Esgotado'}
-                    </button>
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
-                </div>
-                
-                <div className="flex flex-col px-1">
-                  <h4 className="font-bold text-sm text-neutral-300 uppercase tracking-widest">{product.name}</h4>
-                  <div className="flex items-center justify-between mt-2">
-                    {/* 👇 O ?. evita erro se algum produto velho não tiver preço */}
-                    <span className="font-black text-white text-lg">R$ {product.price?.toFixed(2).replace('.', ',')}</span>
-                    {product.stock <= 5 && product.stock > 0 && <span className="text-[9px] text-red-500 font-bold uppercase tracking-wider animate-pulse">Últimas Unidades</span>}
-                  </div>
-                </div>
-              </motion.div>
-            ))
+             dropsProducts.slice(0,8).map(renderProductCard)
           )}
         </div>
       </section>
 
-      {/* SEÇÃO CATEGORIAS DESTAQUE (COM AS FOTOS NOVAS) */}
+      {/* BANNERS DE CATEGORIA */}
       <section className="py-12 bg-black border-y border-neutral-900">
         <div className="max-w-7xl mx-auto px-4 grid grid-cols-1 md:grid-cols-2 gap-4 h-[600px]">
-          <div className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer">
-            <img src="/produtos/1.png" alt="T-Shirts Groove Nation" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" />
+          
+          <div onClick={() => { setCurrentView('oversized'); window.scrollTo(0,0); }} className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer">
+            <img src="/produtos/1.png" alt="Oversized Groove Nation" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" />
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
               <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">OVERSIZED</h3>
               <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">COMPRAR</span>
             </div>
           </div>
-          <div className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer">
+
+          <div onClick={() => { setCurrentView('cropped'); window.scrollTo(0,0); }} className="relative group overflow-hidden bg-neutral-900 rounded cursor-pointer">
             <img src="/produtos/34.png" alt="Cropped Groove Nation" className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:opacity-80 group-hover:scale-105 transition-all duration-700 grayscale" />
             <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/30 group-hover:bg-black/10 transition-colors">
               <h3 className="text-4xl md:text-6xl font-black uppercase italic tracking-tighter text-white drop-shadow-lg">CROPPED</h3>
               <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">COMPRAR</span>
             </div>
           </div>
+
         </div>
       </section>
 
@@ -733,10 +778,15 @@ const HomeView = ({ onAddToCart }) => {
   );
 };
 
+
+// ==========================================
+// COMPONENTE PRINCIPAL (APP)
+// ==========================================
 const App = () => {
   const isUnderMaintenance = false; 
   if (isUnderMaintenance) return <MaintenanceView />;
 
+  // 👇 currentPage agora engloba as categorias também!
   const [currentPage, setCurrentPage] = useState('home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showNavbar, setShowNavbar] = useState(true);
@@ -781,7 +831,10 @@ const App = () => {
 
   const handleNavClick = (page) => {
     if (page === 'admin') setIsAdminRoute(true);
-    else { setIsAdminRoute(false); setCurrentPage(page); }
+    else { 
+      setIsAdminRoute(false); 
+      setCurrentPage(page); // 👈 Clicar no Logo ou Políticas vai redefinir a página
+    }
     setIsMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -794,11 +847,12 @@ const App = () => {
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-purple-500 pt-10">
       <CartSidebar isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} cartItems={cartItems} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} />
-      <TopAnnouncementBar show={showNavbar} />
+      {/* Certifique-se de que o componente TopAnnouncementBar está importado no topo do arquivo se usar ele aqui */}
       
-      <nav className={`fixed top-10 w-full z-50 bg-neutral-950/90 backdrop-blur-md border-b border-neutral-900 transition-transform duration-300 ${showNavbar ? 'translate-y-0' : '-translate-y-[140%]'}`}>
+      <nav className={`fixed top-0 w-full z-50 bg-neutral-950/90 backdrop-blur-md border-b border-neutral-900 transition-transform duration-300 ${showNavbar ? 'translate-y-0' : '-translate-y-[140%]'}`}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-20">
+            {/* O Logo agora reseta perfeitamente para a página inicial */}
             <div onClick={() => handleNavClick('home')} className="cursor-pointer"><img src={logoGroove} alt="Groove Nation" className="h-10 w-auto object-contain hover:opacity-80 transition-opacity" /></div>
             <div className="hidden md:flex space-x-10 items-center">
               <button onClick={() => handleNavClick('privacy')} className="text-xs font-bold tracking-[0.2em] uppercase text-gray-300 hover:text-white transition-colors">Políticas</button>
@@ -818,7 +872,12 @@ const App = () => {
         </div>
       </nav>
       
-      {currentPage === 'home' ? <HomeView onAddToCart={addToCart} /> : currentPage === 'privacy' ? <PrivacyView /> : null}
+      {/* 👇 LÓGICA DE RENDERIZAÇÃO MELHORADA */}
+      {['home', 'oversized', 'cropped'].includes(currentPage) ? (
+        <HomeView currentView={currentPage} setCurrentView={setCurrentPage} onAddToCart={addToCart} />
+      ) : currentPage === 'privacy' ? (
+        <PrivacyView /> // (Certifique-se de que o PrivacyView continua no seu arquivo)
+      ) : null}
 
       <footer className="bg-black py-16 border-t border-neutral-900">
         <div className="max-w-7xl mx-auto px-4">
