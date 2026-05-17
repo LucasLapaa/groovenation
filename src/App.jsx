@@ -359,18 +359,18 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                     <div className="h-full flex flex-col items-center justify-center text-center opacity-50"><ShoppingBag size={48} className="mb-4 text-gray-600" /><p className="text-sm font-bold tracking-widest uppercase text-white">Carrinho Vazio</p></div>
                   ) : (
                     cartItems.map((item) => (
-                      <motion.div layout key={item.id} className="flex gap-4 bg-neutral-900 p-3 rounded-lg border border-neutral-800">
+                      <motion.div layout key={item.cartItemId} className="flex gap-4 bg-neutral-900 p-3 rounded-lg border border-neutral-800">
                         <img src={item.imgFront || item.img} alt={item.name} className="w-20 h-24 object-cover rounded bg-neutral-800" />
                         <div className="flex-1 flex flex-col justify-between">
                           <div className="flex justify-between items-start">
-                            <div><h3 className="font-bold text-white text-xs uppercase tracking-wide">{item.name}</h3><p className="text-[10px] text-gray-500 uppercase mt-1">Tam: G</p></div>
-                            <button onClick={() => onRemoveItem(item.id)} className="text-gray-500 hover:text-red-500"><Trash2 size={16} /></button>
+                            <div><h3 className="font-bold text-white text-xs uppercase tracking-wide">{item.name}</h3><p className="text-[10px] text-gray-500 uppercase mt-1">Tam: {item.size}</p></div>
+                            <button onClick={() => onRemoveItem(item.cartItemId)} className="text-gray-500 hover:text-red-500"><Trash2 size={16} /></button>
                           </div>
                           <div className="flex justify-between items-end">
                             <div className="flex items-center gap-3 bg-black rounded p-1 border border-neutral-800">
-                              <button onClick={() => onUpdateQuantity(item.id, -1)} className="p-1 hover:text-purple-400 text-gray-400"><Minus size={12} /></button>
+                              <button onClick={() => onUpdateQuantity(item.cartItemId, -1)} className="p-1 hover:text-purple-400 text-gray-400"><Minus size={12} /></button>
                               <span className="text-xs font-bold w-4 text-center">{item.quantity}</span>
-                              <button onClick={() => onUpdateQuantity(item.id, 1)} className="p-1 hover:text-purple-400 text-gray-400"><Plus size={12} /></button>
+                              <button onClick={() => onUpdateQuantity(item.cartItemId, 1)} className="p-1 hover:text-purple-400 text-gray-400"><Plus size={12} /></button>
                             </div>
                             <p className="text-white font-bold text-sm">R$ {(item.price * item.quantity).toFixed(2).replace('.', ',')}</p>
                           </div>
@@ -573,7 +573,67 @@ const SpinAndWin = () => {
   );
 };
 
+// ==========================================
+// NOVO COMPONENTE: CARD DE PRODUTO COM TAMANHO
+// ==========================================
+const ProductCard = ({ product, onAddToCart }) => {
+  const [selectedSize, setSelectedSize] = useState('');
 
+  const handleAdd = () => {
+    if (!selectedSize) {
+      alert('⚠️ Por favor, selecione um tamanho (P, M, G ou GG) antes de adicionar ao carrinho!');
+      return;
+    }
+    // Envia o produto E o tamanho escolhido para o carrinho
+    onAddToCart(product, selectedSize);
+    setSelectedSize(''); // Reseta o botão após adicionar
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="group relative flex flex-col">
+      <div className="relative aspect-[3/4] bg-neutral-900 mb-4 overflow-hidden rounded-sm cursor-pointer border border-purple-900 group-hover:border-purple-500 transition-all duration-500 group-hover:shadow-[0_0_15px_rgba(147,51,234,0.3)]">
+        
+        {product.tag && <div className="absolute top-3 left-3 z-20 bg-white text-black text-[9px] font-black px-3 py-1 uppercase tracking-widest shadow-lg">{product.tag}</div>}
+        
+        <img src={product.imgFront || product.img} alt={product.name} className={`absolute inset-0 w-full h-full object-cover opacity-90 transition-all duration-700 z-10 ${product.imgBack ? 'group-hover:opacity-0' : 'group-hover:opacity-100 group-hover:scale-105'}`} />
+        {product.imgBack && <img src={product.imgBack} alt={`${product.name} - Verso`} className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 z-15" />}
+        
+        <div className="absolute bottom-0 left-0 w-full p-4 translate-y-[120%] group-hover:translate-y-0 transition-transform duration-300 z-20 bg-gradient-to-t from-black/90 via-black/60 to-transparent pt-12">
+          
+          {/* 👇 BOTÕES DE TAMANHO 👇 */}
+          <div className="flex justify-center gap-2 mb-3">
+            {['P', 'M', 'G', 'GG'].map(size => (
+              <button
+                key={size}
+                onClick={(e) => { e.stopPropagation(); setSelectedSize(size); }}
+                className={`w-8 h-8 flex items-center justify-center text-[10px] font-black border rounded transition-all duration-300 ${selectedSize === size ? 'bg-purple-600 border-purple-600 text-white scale-110' : 'bg-neutral-950/80 border-neutral-700 text-gray-400 hover:border-white hover:text-white'}`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+
+          <button 
+            onClick={(e) => { e.stopPropagation(); handleAdd(); }} 
+            disabled={product.stock <= 0} 
+            className={`w-full font-black text-xs py-3 uppercase tracking-widest transition-colors ${product.stock > 0 ? 'bg-purple-600 text-white hover:bg-white hover:text-black' : 'bg-neutral-950/80 text-gray-500 backdrop-blur-md cursor-not-allowed'}`}
+          >
+            {product.stock > 0 ? 'Adicionar' : 'Esgotado'}
+          </button>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10 pointer-events-none" />
+      </div>
+      
+      <div className="flex flex-col px-1">
+        <h4 className="font-bold text-sm text-neutral-300 uppercase tracking-widest">{product.name}</h4>
+        <div className="flex items-center justify-between mt-2">
+          <span className="font-black text-white text-lg">R$ {product.price?.toFixed(2).replace('.', ',')}</span>
+          {product.stock <= 5 && product.stock > 0 && <span className="text-[9px] text-red-500 font-bold uppercase tracking-wider animate-pulse">Últimas Unidades</span>}
+        </div>
+      </div>
+    </motion.div>
+  );
+};
 // ==========================================
 // COMPONENTE: VISUALIZAÇÃO HOME E CATEGORIAS (VITRINE)
 // ==========================================
@@ -686,7 +746,7 @@ const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
             ) : activeProducts.length === 0 ? (
                <div className="col-span-full py-20 text-center text-gray-500 text-xs font-bold tracking-widest uppercase">Nenhuma peça nesta categoria ainda.</div>
             ) : (
-               activeProducts.map(renderProductCard)
+               activeProducts.map(p => <ProductCard key={p.id} product={p} onAddToCart={onAddToCart} />)
             )}
           </div>
         </div>
@@ -735,7 +795,7 @@ const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
           ) : dropsProducts.length === 0 ? (
              <div className="col-span-full text-center py-20"><p className="text-gray-500 font-bold tracking-widest text-xs uppercase">Nenhum produto cadastrado nos drops.</p></div>
           ) : (
-             dropsProducts.slice(0,8).map(renderProductCard)
+             dropsProducts.slice(0,8).map(p => <ProductCard key={p.id} product={p} onAddToCart={onAddToCart} />)
           )}
         </div>
       </section>
@@ -811,23 +871,33 @@ const App = () => {
     return () => window.removeEventListener('scroll', controlNavbar);
   }, [lastScrollY]);
 
-  const addToCart = (product) => {
+  const addToCart = (product, size) => {
     setCartItems(prev => {
-      const existing = prev.find(item => item.id === product.id);
-      if (existing) return prev.map(item => item.id === product.id ? { ...item, quantity: item.quantity + 1 } : item);
-      return [...prev, { ...product, quantity: 1 }];
+      const cartItemId = `${product.id}-${size}`; // Cria o identificador único
+      const existing = prev.find(item => item.cartItemId === cartItemId);
+      
+      if (existing) {
+        return prev.map(item => 
+          item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + 1 } : item
+        );
+      }
+      // Adiciona o novo item salvando a prop 'size' e 'cartItemId'
+      return [...prev, { ...product, size, quantity: 1, cartItemId }];
     });
     setIsCartOpen(true);
   };
 
-  const updateQuantity = (id, delta) => {
+  const updateQuantity = (cartItemId, delta) => {
     setCartItems(prev => prev.map(item => {
-      if (item.id === id) { const newQty = item.quantity + delta; return newQty > 0 ? { ...item, quantity: newQty } : item; }
+      if (item.cartItemId === cartItemId) { 
+        const newQty = item.quantity + delta; 
+        return newQty > 0 ? { ...item, quantity: newQty } : item; 
+      }
       return item;
     }));
   };
 
-  const removeFromCart = (id) => setCartItems(prev => prev.filter(item => item.id !== id));
+  const removeFromCart = (cartItemId) => setCartItems(prev => prev.filter(item => item.cartItemId !== cartItemId));
 
   const handleNavClick = (page) => {
     if (page === 'admin') setIsAdminRoute(true);
