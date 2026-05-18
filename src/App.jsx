@@ -137,30 +137,66 @@ const TopAnnouncementBar = ({ show }) => {
 };
 
 // ==========================================
-// COMPONENTE: SIDEBAR DO CARRINHO (3 ETAPAS)
+// COMPONENTE: SIDEBAR DO CARRINHO (COMPLETO E CORRIGIDO)
 // ==========================================
 const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem }) => {
   const freeShippingThreshold = 250;
   
   // Controle das Etapas: 1 = Carrinho | 2 = Dados | 3 = Pagamento
   const [checkoutStep, setCheckoutStep] = useState(1); 
-
+  
+  // Estados do Frete
+  const [cep, setCep] = useState('');
+  const [loadingFrete, setLoadingFrete] = useState(false);
+  const [opcoesFrete, setOpcoesFrete] = useState([]);
+  const [freteSelecionado, setFreteSelecionado] = useState(null);
+  
+  // Estados de Cupom
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponMessage, setCouponMessage] = useState({ text: '', type: '' });
   
+  // Estados de Pagamento
   const [clientSecret, setClientSecret] = useState(null);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
-  
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [pixOrder, setPixOrder] = useState(null);
   const [isProcessingPix, setIsProcessingPix] = useState(false);
 
-  // NOVO: Estado para guardar os dados do cliente
+  // Estado do Cliente
   const [customer, setCustomer] = useState({
     nome: '', cpf: '', telefone: '', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', estado: ''
   });
 
+  // ==========================================
+  // LÓGICA DE RECUPERAÇÃO DE CARRINHO (WHATSAPP)
+  // ==========================================
+  const [showRecoveryPopup, setShowRecoveryPopup] = useState(false);
+
+  useEffect(() => {
+    let timeout;
+    // Só inicia o cronômetro se o carrinho estiver aberto, tiver peças e não estiver na tela de pagamento final
+    if (isOpen && cartItems.length > 0 && !pixOrder && !clientSecret) {
+      // Configurado para 30 segundos (30000 milissegundos). Pode alterar como quiser!
+      timeout = setTimeout(() => {
+        setShowRecoveryPopup(true);
+      }, 30000); 
+    }
+    
+    // Limpa o cronômetro se o usuário fechar o carrinho ou avançar
+    return () => clearTimeout(timeout);
+  }, [isOpen, cartItems.length, pixOrder, clientSecret, checkoutStep]);
+
+  const handleRecoveryWhatsApp = () => {
+    const WHATSAPP_NUMBER = "5516988265500";
+    const message = `Fala equipe Groove Nation! ✌️\n\nEstava montando meu carrinho no site, fiquei com uma dúvida e vi que liberou um atendimento VIP. Conseguem me dar uma força para fechar o pedido?`;
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
+    setShowRecoveryPopup(false);
+  };
+
+  // ==========================================
+  // CÁLCULOS FINANCEIROS
+  // ==========================================
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   let discountValue = 0;
   let isFreeShippingCoupon = false;
@@ -170,10 +206,13 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     else discountValue = subtotal * (appliedCoupon.discount / 100);
   }
 
-  const total = subtotal - discountValue;
-  const progress = Math.min((subtotal / freeShippingThreshold) * 100, 100);
-  const remaining = freeShippingThreshold - subtotal;
+  // Se o cupom for frete grátis, o valor do frete zera.
+  const valorFrete = freteSelecionado && !isFreeShippingCoupon ? parseFloat(freteSelecionado.price) : 0;
+  const total = subtotal - discountValue + valorFrete;
 
+  // ==========================================
+  // FUNÇÕES DE AÇÃO
+  // ==========================================
   const handleApplyCoupon = () => {
     if(!couponInput) return;
     const coupons = JSON.parse(localStorage.getItem('groove_coupons')) || [];
@@ -185,6 +224,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     }
     setAppliedCoupon(foundCoupon);
     setCouponMessage({ text: foundCoupon.type === 'frete' ? 'Frete Grátis Aplicado!' : `${foundCoupon.discount}% OFF Aplicado!`, type: 'success' });
+    setCouponInput('');
   };
 
   const removeCoupon = () => {
@@ -193,30 +233,72 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     setCouponMessage({ text: '', type: '' });
   };
 
-  // Lida com a digitação nos campos
+  // Calcula o Frete via Firebase (Melhor Envio)
+  // 👇 Lógica do Frete com TODAS AS OPÇÕES GRÁTIS
+  const handleCalcularFrete = async () => {
+    if (cep.length < 8) {
+      alert('Por favor, digite um CEP válido.');
+      return;
+    }
+    setLoadingFrete(true);
+    setOpcoesFrete([]);
+    setFreteSelecionado(null);
+
+    try {
+      const calcularFreteFn = httpsCallable(functions, 'calcularFrete');
+      const result = await calcularFreteFn({ cepDestino: cep, itens: cartItems });
+      
+      let fretesRecebidos = result.data.fretes || [];
+
+      // ==========================================
+      // MÁGICA: Zera o valor de QUALQUER frete
+      // ==========================================
+      fretesRecebidos = fretesRecebidos.map(frete => {
+        return { ...frete, price: "0.00" }; 
+      });
+
+      setOpcoesFrete(fretesRecebidos);
+    } catch (error) {
+      console.error("Erro ao buscar frete:", error);
+      alert("Não foi possível calcular o frete. Tente novamente.");
+    } finally {
+      setLoadingFrete(false);
+    }
+  };
+
   const handleCustomerChange = (e) => {
     setCustomer({ ...customer, [e.target.name]: e.target.value });
   };
 
-  // Busca o CEP automaticamente na API dos Correios (ViaCEP)
-  const checkCEP = async (e) => {
-    const cep = e.target.value.replace(/\D/g, '');
-    if (cep.length === 8) {
+  // Busca endereço automático (ViaCEP)
+  const checkCEP = async (cepBuscado) => {
+    const cepLimpo = cepBuscado.replace(/\D/g, '');
+    if (cepLimpo.length === 8) {
       try {
-        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const res = await fetch(`https://viacep.com.br/ws/${cepLimpo}/json/`);
         const data = await res.json();
         if (!data.erro) {
           setCustomer(prev => ({
-            ...prev, rua: data.logradouro, bairro: data.bairro, cidade: data.localidade, estado: data.uf
+            ...prev, cep: cepLimpo, rua: data.logradouro, bairro: data.bairro, cidade: data.localidade, estado: data.uf
           }));
         }
-      } catch (err) {
-        console.log(err);
-      }
+      } catch (err) { console.log(err); }
     }
   };
 
-  // Valida os dados antes de ir para o pagamento
+  // Avançar da Etapa 1 para 2 (Com UX de Auto-Preenchimento)
+  const handleContinuarStep1 = () => {
+    if (!freteSelecionado) {
+      alert("⚠️ Por favor, calcule e selecione o frete para a sua região antes de continuar.");
+      return;
+    }
+    // Se o cliente já preencheu o CEP no frete, já puxamos a rua dele automaticamente na etapa 2!
+    if (cep && !customer.cep) {
+      checkCEP(cep);
+    }
+    setCheckoutStep(2);
+  };
+
   const goToPayment = () => {
     if (!customer.nome || !customer.cpf || !customer.cep || !customer.rua || !customer.numero) {
       alert("⚠️ Por favor, preencha todos os campos obrigatórios para entrega.");
@@ -225,14 +307,23 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     setCheckoutStep(3);
   };
 
-  // PAGAMENTO 1: STRIPE (CARTÃO)
+  // ==========================================
+  // INTEGRAÇÕES DE PAGAMENTO E PEDIDOS
+  // ==========================================
+  
+  // Gera a string dos itens + frete escolhido para salvar no banco
+  const getItensString = () => {
+    const roupas = cartItems.map(item => `${item.quantity}x ${item.name} (Tam: ${item.size})`).join(', ');
+    const freteStr = freteSelecionado ? ` | Frete: ${freteSelecionado.name}` : '';
+    return roupas + freteStr;
+  };
+
   const startCheckout = async () => {
     if (cartItems.length === 0) return;
     setIsInitializingPayment(true);
     try {
       const createPaymentIntent = httpsCallable(functions, 'createPaymentIntent');
-      const itemsString = cartItems.map(item => `${item.quantity}x ${item.name} (Tam: G)`).join(', ');
-
+      const itemsString = getItensString();
       const totalParaEnvio = parseFloat(total.toFixed(2));
       const result = await createPaymentIntent({ total: totalParaEnvio, items: itemsString, method: ['card'] });
       
@@ -245,13 +336,12 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     }
   };
 
-  // PAGAMENTO 2: PIX E BOLETO VIA WHATSAPP
   const handleWhatsAppCheckout = async () => {
     if (cartItems.length === 0) return;
     setIsProcessingPix(true);
     
     try {
-      const itemsString = cartItems.map(item => `${item.quantity}x ${item.name} (Tam: G)`).join(', ');
+      const itemsString = getItensString();
       const prefix = paymentMethod === 'pix' ? 'PIX' : 'BOL';
       const orderId = `${prefix}-${Math.floor(100000 + Math.random() * 900000)}`;
       const totalParaEnvio = parseFloat(total.toFixed(2));
@@ -259,16 +349,16 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
 
       const enderecoFormatado = `${customer.rua}, ${customer.numero} ${customer.complemento ? `(${customer.complemento})` : ''} - ${customer.bairro}, ${customer.cidade}-${customer.estado} | CEP: ${customer.cep}`;
 
-      // Salva no banco de dados COM OS DADOS DO CLIENTE
       await setDoc(doc(db, "pedidos", orderId), {
         pedidoId: orderId,
         valorTotal: totalParaEnvio,
         status: `AGUARDANDO ${methodLabel.toUpperCase()}`,
         itens: itemsString,
-        email: customer.nome, // Usamos a coluna de email para guardar o nome na tabela
+        email: customer.nome, 
         cpf: customer.cpf,
         telefone: customer.telefone,
         endereco: enderecoFormatado,
+        freteEscolhido: freteSelecionado ? freteSelecionado.name : 'Não informado',
         data: serverTimestamp()
       });
 
@@ -282,7 +372,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     }
   };
 
-  // TELA DE SUCESSO DO PIX / BOLETO
+  // TELA DE SUCESSO PIX / BOLETO
   if (pixOrder) {
     const WHATSAPP_NUMBER = "5516988265500";
     const message = `Fala Groove Nation! ✌️\n\nAcabei de gerar o pedido *${pixOrder.id}* no site e quero finalizar via *${pixOrder.method}*.\n\n*Meus Dados:*\n👤 Nome: ${pixOrder.customer.nome}\n📦 Endereço: ${pixOrder.enderecoFormatado}\n\n*Valor Total:* R$ ${pixOrder.total.toFixed(2).replace('.', ',')}\n*Itens:* ${pixOrder.items}`;
@@ -317,7 +407,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     );
   }
 
-  // Títulos dinâmicos para o cabeçalho
   const titulos = { 1: 'CARRINHO', 2: 'DADOS DE ENTREGA', 3: 'PAGAMENTO' };
 
   return (
@@ -325,8 +414,45 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
       {isOpen && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" />
+          {/* 👇 CORREÇÃO AQUI: Removido a classe 'relative' conflitante do final */}
           <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed top-0 right-0 h-full w-full max-w-md z-[101] bg-neutral-950 border-l border-neutral-800 shadow-2xl flex flex-col">
             
+            {/* NOVO: TELA DE RECUPERAÇÃO DE CARRINHO (POP-UP VIP) */}
+            <AnimatePresence>
+              {showRecoveryPopup && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }} 
+                  animate={{ opacity: 1, scale: 1 }} 
+                  exit={{ opacity: 0, scale: 0.95 }} 
+                  className="absolute inset-0 z-[105] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center border-l border-green-500/20"
+                >
+                  <div className="bg-green-500/10 p-5 rounded-full border border-green-500/20 mb-6">
+                    <MessageCircle className="text-green-500" size={48} />
+                  </div>
+                  <h3 className="text-2xl font-black text-white italic tracking-widest uppercase mb-3">
+                    Travou aí?
+                  </h3>
+                  <p className="text-gray-400 text-sm mb-8 leading-relaxed">
+                    Nossa equipe está online no VIP. Deixa a gente te ajudar a escolher o tamanho ideal e ainda liberar um <span className="text-green-500 font-bold uppercase tracking-widest">cupom exclusivo</span> pra você fechar o pedido agora!
+                  </p>
+                  
+                  <button 
+                    onClick={handleRecoveryWhatsApp}
+                    className="w-full bg-green-500 hover:bg-green-400 text-black font-black py-4 rounded tracking-widest uppercase text-sm mb-4 shadow-[0_0_20px_rgba(34,197,94,0.2)] transition-all flex items-center justify-center gap-2"
+                  >
+                     CHAMAR NO WHATSAPP VIP <ArrowRight size={16} />
+                  </button>
+                  
+                  <button 
+                    onClick={() => setShowRecoveryPopup(false)}
+                    className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors"
+                  >
+                    Voltar para o carrinho
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             {/* CABEÇALHO */}
             <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-black shrink-0">
               <div className="flex items-center gap-3">
@@ -350,10 +476,9 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
               </div>
             )}
 
-            {/* ETAPA 1: CARRINHO */}
+            {/* ETAPA 1: CARRINHO (Produtos + Cupom + Frete) */}
             {!clientSecret && checkoutStep === 1 && (
               <>
-                
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   {cartItems.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center opacity-50"><ShoppingBag size={48} className="mb-4 text-gray-600" /><p className="text-sm font-bold tracking-widest uppercase text-white">Carrinho Vazio</p></div>
@@ -363,7 +488,10 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                         <img src={item.imgFront || item.img} alt={item.name} className="w-20 h-24 object-cover rounded bg-neutral-800" />
                         <div className="flex-1 flex flex-col justify-between">
                           <div className="flex justify-between items-start">
-                            <div><h3 className="font-bold text-white text-xs uppercase tracking-wide">{item.name}</h3><p className="text-[10px] text-gray-500 uppercase mt-1">Tam: {item.size}</p></div>
+                            <div>
+                              <h3 className="font-bold text-white text-xs uppercase tracking-wide">{item.name}</h3>
+                              <p className="text-[10px] text-gray-500 uppercase mt-1">Tam: {item.size}</p>
+                            </div>
                             <button onClick={() => onRemoveItem(item.cartItemId)} className="text-gray-500 hover:text-red-500"><Trash2 size={16} /></button>
                           </div>
                           <div className="flex justify-between items-end">
@@ -380,8 +508,11 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                   )}
                 </div>
                 
+                {/* FOOTER DO CARRINHO */}
                 {cartItems.length > 0 && (
                   <div className="p-6 bg-black border-t border-neutral-800 flex flex-col gap-4 shrink-0">
+                    
+                    {/* ÁREA DE CUPOM */}
                     <div className="flex flex-col gap-2">
                       {!appliedCoupon ? (
                         <div className="flex gap-2">
@@ -391,9 +522,54 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                       ) : (
                         <div className="flex justify-between items-center bg-purple-500/10 border border-purple-500/30 rounded p-3"><span className="text-purple-400 font-bold text-xs uppercase tracking-widest flex items-center gap-2"><Ticket size={14}/> {appliedCoupon.code}</span><button onClick={removeCoupon} className="text-gray-400 hover:text-white"><X size={14}/></button></div>
                       )}
+                      {couponMessage.text && !appliedCoupon && (<p className={`text-[10px] font-bold tracking-widest uppercase mt-1 ${couponMessage.type === 'error' ? 'text-red-500' : 'text-green-500'}`}>{couponMessage.text}</p>)}
                     </div>
-                    <div className="flex justify-between items-center mt-2 pt-4 border-t border-neutral-800/50"><span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span><span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span></div>
-                    <button onClick={() => setCheckoutStep(2)} className="w-full bg-white hover:bg-purple-600 text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2">
+
+                    {/* ÁREA DE FRETE (MELHOR ENVIO) */}
+                    <div className="border-t border-neutral-800/50 pt-4">
+                      <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase block mb-2">Calcular Frete</span>
+                      <div className="flex gap-2 mb-3">
+                        <input type="text" placeholder="CEP (Ex: 11310000)" value={cep} onChange={(e) => setCep(e.target.value.replace(/\D/g, ''))} maxLength="8" className="flex-1 bg-neutral-900 border border-neutral-700 rounded px-4 py-2 text-xs font-bold text-white uppercase focus:border-purple-500 outline-none" />
+                        <button onClick={handleCalcularFrete} disabled={loadingFrete} className="bg-neutral-800 hover:bg-neutral-700 text-white font-bold px-4 rounded text-xs border border-neutral-700 uppercase tracking-widest disabled:opacity-50">
+                          {loadingFrete ? 'Calculando...' : 'Calcular'}
+                        </button>
+                      </div>
+
+                     {/* RESULTADOS DO FRETE */}
+                      {opcoesFrete.length > 0 && (
+                        <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
+                          {opcoesFrete.map((frete) => (
+                            <div 
+                              key={frete.id}
+                              onClick={() => setFreteSelecionado(frete)}
+                              className={`flex justify-between items-center p-3 border rounded cursor-pointer transition-all ${freteSelecionado?.id === frete.id ? 'border-purple-500 bg-purple-500/10' : 'border-neutral-800 bg-neutral-900 hover:border-neutral-700'}`}
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-white font-bold text-[10px] uppercase tracking-wide">{frete.name}</span>
+                                <span className="text-gray-500 text-[9px] uppercase">Chega em {frete.delivery_time} dias úteis</span>
+                              </div>
+                              
+                              {/* 👇 MÁGICA DO TEXTO GRÁTIS AQUI 👇 */}
+                              <span className="text-green-500 font-black text-xs tracking-widest uppercase">
+                                GRÁTIS
+                              </span>
+                              
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* TOTAIS E BOTÃO */}
+                    <div className="flex justify-between items-center mt-2 pt-4 border-t border-neutral-800/50">
+                      <div className="flex flex-col">
+                        <span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span>
+                        {freteSelecionado && <span className="text-green-500 text-[9px] uppercase font-bold tracking-widest">+ Frete Incluso</span>}
+                      </div>
+                      <span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span>
+                    </div>
+                    
+                    <button onClick={handleContinuarStep1} className="w-full bg-white hover:bg-purple-600 text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2">
                       CONTINUAR <ArrowRight size={16} />
                     </button>
                   </div>
@@ -409,11 +585,11 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                     <input name="nome" value={customer.nome} onChange={handleCustomerChange} placeholder="Nome Completo *" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
                     <div className="grid grid-cols-2 gap-3">
                       <input name="cpf" value={customer.cpf} onChange={handleCustomerChange} placeholder="CPF *" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
-                      <input name="telefone" value={customer.telefone} onChange={handleCustomerChange} placeholder="Telefone/WhatsApp" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                      <input name="telefone" value={customer.telefone} onChange={handleCustomerChange} placeholder="WhatsApp *" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
                     </div>
                     
-                    <h3 className="text-gray-500 text-xs font-bold uppercase tracking-widest pt-4 pb-1">Endereço</h3>
-                    <input name="cep" value={customer.cep} onChange={handleCustomerChange} onBlur={checkCEP} placeholder="CEP * (Digite para buscar)" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
+                    <h3 className="text-gray-500 text-xs font-bold uppercase tracking-widest pt-4 pb-1">Endereço de Entrega</h3>
+                    <input name="cep" value={customer.cep} onChange={handleCustomerChange} onBlur={(e) => checkCEP(e.target.value)} placeholder="CEP * (Digite para buscar)" className="w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
                     
                     <div className="grid grid-cols-3 gap-3">
                       <input name="rua" value={customer.rua} onChange={handleCustomerChange} placeholder="Rua *" className="col-span-2 w-full bg-neutral-900 border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors" />
@@ -447,6 +623,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Entregar para:</p>
                     <p className="text-white text-sm font-bold">{customer.nome}</p>
                     <p className="text-gray-400 text-xs mt-1">{customer.rua}, {customer.numero} - {customer.cidade}/{customer.estado}</p>
+                    <p className="text-purple-400 text-[10px] font-bold mt-2 uppercase tracking-widest">🚚 Frete: {freteSelecionado.name}</p>
                   </div>
 
                   <div className="flex flex-col gap-3">
@@ -492,7 +669,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     </AnimatePresence>
   );
 };
-
 // ==========================================
 // COMPONENTE: ROLETA DE DESCONTOS
 // ==========================================

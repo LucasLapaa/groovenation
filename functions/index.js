@@ -2,6 +2,7 @@ require("dotenv").config();
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
 const nodemailer = require("nodemailer"); // <-- O nosso novo carteiro
+const https = require('https');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -117,4 +118,81 @@ exports.stripeWebhook = functions.https.onRequest(async (req, res) => {
   }
 
   res.json({ received: true });
+});
+
+const axios = require('axios');
+
+// =====================================
+// FUNÇÃO 2: MELHOR ENVIO (BLINDAGEM TOTAL)
+// =====================================
+exports.calcularFrete = functions.https.onCall((data, context) => {
+  const payload = data.cepDestino ? data : (data.data || {});
+  const cepDestino = payload.cepDestino;
+  const itens = payload.itens || [];
+
+  if (!cepDestino) {
+    throw new functions.https.HttpsError('invalid-argument', 'O CEP de destino é obrigatório.');
+  }
+
+  const deparaProdutos = itens.map((item) => ({
+    id: item.id || 'gn-item',
+    width: 11,
+    height: 2 * (item.quantity || 1),
+    length: 16,
+    weight: 0.3 * (item.quantity || 1), 
+    insurance_value: (item.price || 0) * (item.quantity || 1),
+    quantity: item.quantity || 1
+  }));
+
+  const requestBody = JSON.stringify({
+    from: { postal_code: '11310000' },
+    to: { postal_code: cepDestino.replace(/\D/g, '') },
+    products: deparaProdutos
+  });
+
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: 'sandbox.melhorenvio.com.br',
+      path: '/api/v2/me/shipment/calculate',
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json', // 👈 ISTO OBRIGA ELES A RESPONDEREM CERTO
+        'Authorization': 'Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9.eyJhdWQiOiI5NTYiLCJqdGkiOiJkYTU3ZjY5MDNmYmI5YTI3YTkyNDJhMWFjZWY3MzVjODFiNjdhYmM1MTY0ZGFiMzdlNjU3NjBlNGEwMjAwZGNjMDZhMWNjODE5YTA5NDFlMiIsImlhdCI6MTc3OTA2Mjg3My42NTk1NTgsIm5iZiI6MTc3OTA2Mjg3My42NTk1NiwiZXhwIjoxODEwNTk4ODczLjY1MDU5Niwic3ViIjoiYTFjZGY2MTktMGNiMy00MTU4LWI4MTMtZDA0YWE1ZjY0MDg5Iiwic2NvcGVzIjpbImNhcnQtcmVhZCIsImNhcnQtd3JpdGUiLCJjb21wYW5pZXMtcmVhZCIsImNvbXBhbmllcy13cml0ZSIsImNvdXBvbnMtcmVhZCIsImNvdXBvbnMtd3JpdGUiLCJub3RpZmljYXRpb25zLXJlYWQiLCJvcmRlcnMtcmVhZCIsInByb2R1Y3RzLXJlYWQiLCJwcm9kdWN0cy1kZXN0cm95IiwicHJvZHVjdHMtd3JpdGUiLCJwdXJjaGFzZXMtcmVhZCIsInNoaXBwaW5nLWNhbGN1bGF0ZSIsInNoaXBwaW5nLWNhbmNlbCIsInNoaXBwaW5nLWNoZWNrb3V0Iiwic2hpcHBpbmctY29tcGFuaWVzIiwic2hpcHBpbmctZ2VuZXJhdGUiLCJzaGlwcGluZy1wcmV2aWV3Iiwic2hpcHBpbmctcHJpbnQiLCJzaGlwcGluZy1zaGFyZSIsInNoaXBwaW5nLXRyYWNraW5nIiwiZWNvbW1lcmNlLXNoaXBwaW5nIiwidHJhbnNhY3Rpb25zLXJlYWQiLCJ1c2Vycy1yZWFkIiwidXNlcnMtd3JpdGUiLCJ3ZWJob29rcy1yZWFkIiwid2ViaG9va3Mtd3JpdGUiLCJ3ZWJob29rcy1kZWxldGUiLCJ0ZGVhbGVyLXdlYmhvb2siXX0.TLLCI5jw4WLqbsaDNwH9XYmlODmFTH8s9B3a9cnPm_ylaKkN8rDhf2l5gId5fyMtV01zVUI_cBIyI3f79b94VKWHmErhce0zc06WSHYXOgKoZiGoreUbYomgR_8DTy8p3y4SB095aC3VcPERo0UYziy8NNdaHuUh-qG5X7WjrpGQAsdHZZ5Qjehm8HGgL8w1RbcliVYMWE2i1_RkyoPh732U4gRK5-QTYuoI3P1TZJJ4pHRjKk8OX2Md6SRxNkpo7FKTo58BKEl1w3aIh50SDGe44ip1JnUPb0eLpx067wDTM6g8n5IXHDsVNPNatep8UHikCfD_F6kcqw_bOuxagSdZKV4uTwdqNOWnu7Aem4AQCdHNSCIQ2v1Hllk3hxQDhVLbfRtj8QnzY2U43hbIfIwMads332PqZyTLqX0hf_LyXyFvoAb8U-tFrtoPMinOIYXLJxAa3d2yT04HVPUtVs7P-KbwadwyOrRiwZewvo0O33swgHym7Ih-PYYsYxV444rchvjKFxsa3RKa6TQsshWE8k46smxG2ypgMm9KXY8siJwCAwXgTHDWa9bbegR8phO6D0R2Zu5SvY9zToiNjduuMyAEHXD6yxo5U8gjtFVnSuNzD_IL4jqUJaNzqXxTYS1Ss3GVSbvv2Y7Gb1bNK-NFzU_xW54h5XPOH9w50HI',      
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(requestBody),
+        'User-Agent': 'GrooveNation App (contato@groovenation.com.br)'
+      }
+    }, (res) => {
+      let body = '';
+      
+      res.on('data', (chunk) => { body += chunk; });
+      
+      res.on('end', () => {
+        try {
+          // Tenta ler a resposta
+          const responseData = JSON.parse(body);
+          
+          if (res.statusCode >= 200 && res.statusCode < 300) {
+            const fretesValidos = responseData.filter(frete => !frete.error);
+            resolve({ fretes: fretesValidos });
+          } else {
+            console.error('Erro retornado pelo Melhor Envio:', responseData);
+            resolve({ fretes: [] }); // Retorna vazio em vez de dar erro vermelho
+          }
+        } catch (e) {
+          // Se eles não mandarem JSON (ex: página HTML de erro), a gente captura aqui!
+          console.error('Resposta bizarra do Melhor Envio (Não é JSON):', body);
+          resolve({ fretes: [] }); // Retorna vazio em vez de crashar o site
+        }
+      });
+    });
+
+    req.on('error', (e) => {
+      console.error('Falha de rede:', e);
+      reject(new functions.https.HttpsError('internal', 'Erro de rede.'));
+    });
+
+    req.write(requestBody);
+    req.end();
+  });
 });
