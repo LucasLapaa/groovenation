@@ -1103,7 +1103,7 @@ const App = () => {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-20">
             {/* O Logo agora reseta perfeitamente para a página inicial */}
-            <div onClick={() => handleNavClick('home')} className="cursor-pointer"><img src={logoGroove} alt="Groove Nation" className="h-10 w-auto object-contain hover:opacity-80 transition-opacity" /></div>
+            <div onClick={() => handleNavClick('home')} className="cursor-pointer"><img src={logoGroove} alt="Groove Nation" className="h-20 md:h-20 w-auto object-contain hover:opacity-80 transition-opacity" /></div>
             <div className="hidden md:flex space-x-10 items-center">
               <button onClick={() => handleNavClick('privacy')} className="text-xs font-bold tracking-[0.2em] uppercase text-gray-300 hover:text-white transition-colors">Políticas</button>
               <div className="relative cursor-pointer flex items-center gap-2 text-white hover:text-purple-400 transition-colors" onClick={() => setIsCartOpen(true)}>
