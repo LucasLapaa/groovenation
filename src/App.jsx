@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-
+import ProductReviews from './ProductReviews';
 // --- FIREBASE (Tudo em uma linha só para não dar erro) ---
 import { collection, query, orderBy, onSnapshot, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
@@ -995,13 +995,17 @@ const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
               <span className="mt-4 px-6 py-2 border border-white text-white text-xs font-bold uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-colors">COMPRAR</span>
             </div>
           </div>
-
+        
         </div>
       </section>
 
       <SpinAndWin />
-
+      {/* ⭐ SEÇÃO DE AVALIAÇÕES (Isolada com espaçamento perfeito) */}
+      <section className="py-12 bg-neutral-950 border-t border-neutral-900">
+        <ProductReviews />
+      </section>
       <section className="py-24 bg-neutral-950 border-t border-neutral-900">
+        
         <div className="max-w-3xl mx-auto px-4 text-center">
           <h2 className="text-3xl md:text-4xl font-black text-white mb-12 uppercase italic tracking-tighter">Dúvidas Frequentes</h2>
           <div className="space-y-4 text-left">
@@ -1141,8 +1145,11 @@ const App = () => {
       </footer>
 
       <div className="fixed bottom-6 right-6 z-50"><a href="https://wa.me/5516988265500" target="_blank" rel="noopener noreferrer" className="bg-[#25D366] text-white p-4 rounded-full shadow-[0_0_20px_rgba(37,211,102,0.3)] hover:scale-110 transition-transform flex items-center justify-center"><MessageCircle size={28} fill="white" /></a></div>
+    
     </div>
+    
   );
+  
 };
 
 export default App;
