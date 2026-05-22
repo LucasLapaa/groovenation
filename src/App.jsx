@@ -20,95 +20,16 @@ import {
   Plus, Minus, ArrowRight, Gift 
 } from 'lucide-react';
 
-// --- STRIPE ---
-import { loadStripe } from '@stripe/stripe-js';
-import { 
-  Elements, PaymentElement, useStripe, useElements, 
-  LinkAuthenticationElement, AddressElement 
-} from '@stripe/react-stripe-js';
-
 // --- COMPONENTES E ATIVOS ---
 import AdminDashboard from './AdminDashboard';
 import AdminLogin from './AdminLogin';
 import logoGroove from './assets/groove.png';
 import MaintenanceView from './MaintenanceView';
 
-
-
-// ==========================================
-// CONFIGURAÇÕES DE PAGAMENTO (COLOQUE SUAS CHAVES AQUI)
-// ==========================================
-const stripePromise = loadStripe("pk_live_51TVuM39BeQIlr6KIqkQWu6xWUu44ensNxnaSqsgi5CCBBq8w2IqMvx5mLZwiZec7633Uiq6HPLt1VDbgVv9j5aF400xCWOqqd4");
-
-
 // ==========================================
 // BANCO DE PRODUTOS PADRÃO (Para vitrine)
 // ==========================================
-const defaultProducts = [
-  ];
-
-// ==========================================
-// COMPONENTE: FORMULÁRIO DO STRIPE (FRONTEND)
-// ==========================================
-const CheckoutForm = ({ total, onBack }) => {
-  const stripe = useStripe();
-  const elements = useElements();
-  const [isProcessing, setIsProcessing] = useState(false);
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!stripe || !elements) return;
-
-    setIsProcessing(true);
-    const { error } = await stripe.confirmPayment({
-      elements,
-      confirmParams: {
-        // Para onde o site vai depois que o cartão for aprovado
-        return_url: `${window.location.origin}/`, 
-      },
-    });
-
-    if (error) {
-      alert(error.message); // Mostra se o cartão foi recusado
-    }
-    setIsProcessing(false);
-  };
-
-  return (
-    <form onSubmit={handleSubmit} className="flex flex-col h-full">
-      {/* O container com rolagem para o formulário do Stripe */}
-      <div className="flex-1 overflow-y-auto px-2 pb-4">
-        <PaymentElement 
-          options={{ 
-            layout: 'tabs', // 👈 FORÇA O MODO DE ABAS (Já vem aberto)
-            fields: {
-              
-            }
-          }} 
-        />
-      </div>
-
-      {/* Botões de Ação */}
-      <div className="pt-4 border-t border-neutral-800 mt-auto shrink-0 bg-neutral-900">
-        <button 
-          disabled={isProcessing || !stripe || !elements} 
-          className="w-full bg-purple-700 hover:bg-purple-600 text-white font-black py-4 rounded uppercase tracking-widest text-sm transition-all flex justify-center items-center gap-2 disabled:opacity-50"
-        >
-          {isProcessing ? 'PROCESSANDO...' : `PAGAR R$ ${total.toFixed(2).replace('.', ',')}`}
-        </button>
-        
-        <button 
-          type="button" 
-          onClick={onBack} 
-          className="w-full mt-4 text-gray-500 text-xs font-bold uppercase tracking-widest hover:text-white transition-colors"
-        >
-          VOLTAR AO CARRINHO
-        </button>
-      </div>
-    </form>
-  );
-};
-
+const defaultProducts = [];
 
 // ==========================================
 // COMPONENTES MODAIS E GLOBAIS
@@ -137,55 +58,42 @@ const TopAnnouncementBar = ({ show }) => {
 };
 
 // ==========================================
-// COMPONENTE: SIDEBAR DO CARRINHO (COMPLETO E CORRIGIDO)
+// COMPONENTE: SIDEBAR DO CARRINHO (MERCADO PAGO + WHATSAPP)
 // ==========================================
 const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveItem }) => {
   const freeShippingThreshold = 250;
   
-  // Controle das Etapas: 1 = Carrinho | 2 = Dados | 3 = Pagamento
   const [checkoutStep, setCheckoutStep] = useState(1); 
   
-  // Estados do Frete
   const [cep, setCep] = useState('');
   const [loadingFrete, setLoadingFrete] = useState(false);
   const [opcoesFrete, setOpcoesFrete] = useState([]);
   const [freteSelecionado, setFreteSelecionado] = useState(null);
   
-  // Estados de Cupom
   const [couponInput, setCouponInput] = useState('');
   const [appliedCoupon, setAppliedCoupon] = useState(null);
   const [couponMessage, setCouponMessage] = useState({ text: '', type: '' });
   
-  // Estados de Pagamento
-  const [clientSecret, setClientSecret] = useState(null);
   const [isInitializingPayment, setIsInitializingPayment] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState('card');
   const [pixOrder, setPixOrder] = useState(null);
   const [isProcessingPix, setIsProcessingPix] = useState(false);
 
-  // Estado do Cliente
   const [customer, setCustomer] = useState({
     nome: '', cpf: '', telefone: '', cep: '', rua: '', numero: '', complemento: '', bairro: '', cidade: '', estado: ''
   });
 
-  // ==========================================
-  // LÓGICA DE RECUPERAÇÃO DE CARRINHO (WHATSAPP)
-  // ==========================================
   const [showRecoveryPopup, setShowRecoveryPopup] = useState(false);
 
   useEffect(() => {
     let timeout;
-    // Só inicia o cronômetro se o carrinho estiver aberto, tiver peças e não estiver na tela de pagamento final
-    if (isOpen && cartItems.length > 0 && !pixOrder && !clientSecret) {
-      // Configurado para 30 segundos (30000 milissegundos). Pode alterar como quiser!
+    if (isOpen && cartItems.length > 0 && !pixOrder) {
       timeout = setTimeout(() => {
         setShowRecoveryPopup(true);
       }, 30000); 
     }
-    
-    // Limpa o cronômetro se o usuário fechar o carrinho ou avançar
     return () => clearTimeout(timeout);
-  }, [isOpen, cartItems.length, pixOrder, clientSecret, checkoutStep]);
+  }, [isOpen, cartItems.length, pixOrder, checkoutStep]);
 
   const handleRecoveryWhatsApp = () => {
     const WHATSAPP_NUMBER = "5516988265500";
@@ -194,9 +102,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     setShowRecoveryPopup(false);
   };
 
-  // ==========================================
-  // CÁLCULOS FINANCEIROS
-  // ==========================================
   const subtotal = cartItems.reduce((acc, item) => acc + item.price * item.quantity, 0);
   let discountValue = 0;
   let isFreeShippingCoupon = false;
@@ -206,13 +111,9 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     else discountValue = subtotal * (appliedCoupon.discount / 100);
   }
 
-  // Se o cupom for frete grátis, o valor do frete zera.
   const valorFrete = freteSelecionado && !isFreeShippingCoupon ? parseFloat(freteSelecionado.price) : 0;
   const total = subtotal - discountValue + valorFrete;
 
-  // ==========================================
-  // FUNÇÕES DE AÇÃO
-  // ==========================================
   const handleApplyCoupon = () => {
     if(!couponInput) return;
     const coupons = JSON.parse(localStorage.getItem('groove_coupons')) || [];
@@ -233,8 +134,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     setCouponMessage({ text: '', type: '' });
   };
 
-  // Calcula o Frete via Firebase (Melhor Envio)
-  // 👇 Lógica do Frete com TODAS AS OPÇÕES GRÁTIS
   const handleCalcularFrete = async () => {
     if (cep.length < 8) {
       alert('Por favor, digite um CEP válido.');
@@ -250,9 +149,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
       
       let fretesRecebidos = result.data.fretes || [];
 
-      // ==========================================
-      // MÁGICA: Zera o valor de QUALQUER frete
-      // ==========================================
       fretesRecebidos = fretesRecebidos.map(frete => {
         return { ...frete, price: "0.00" }; 
       });
@@ -270,7 +166,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     setCustomer({ ...customer, [e.target.name]: e.target.value });
   };
 
-  // Busca endereço automático (ViaCEP)
   const checkCEP = async (cepBuscado) => {
     const cepLimpo = cepBuscado.replace(/\D/g, '');
     if (cepLimpo.length === 8) {
@@ -286,13 +181,11 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     }
   };
 
-  // Avançar da Etapa 1 para 2 (Com UX de Auto-Preenchimento)
   const handleContinuarStep1 = () => {
     if (!freteSelecionado) {
       alert("⚠️ Por favor, calcule e selecione o frete para a sua região antes de continuar.");
       return;
     }
-    // Se o cliente já preencheu o CEP no frete, já puxamos a rua dele automaticamente na etapa 2!
     if (cep && !customer.cep) {
       checkCEP(cep);
     }
@@ -306,31 +199,53 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     }
     setCheckoutStep(3);
   };
-
-  // ==========================================
-  // INTEGRAÇÕES DE PAGAMENTO E PEDIDOS
-  // ==========================================
   
-  // Gera a string dos itens + frete escolhido para salvar no banco
   const getItensString = () => {
     const roupas = cartItems.map(item => `${item.quantity}x ${item.name} (Tam: ${item.size})`).join(', ');
     const freteStr = freteSelecionado ? ` | Frete: ${freteSelecionado.name}` : '';
     return roupas + freteStr;
   };
 
+  // 👇 FUNÇÃO DO MERCADO PAGO 👇
   const startCheckout = async () => {
     if (cartItems.length === 0) return;
     setIsInitializingPayment(true);
+    
     try {
-      const createPaymentIntent = httpsCallable(functions, 'createPaymentIntent');
       const itemsString = getItensString();
       const totalParaEnvio = parseFloat(total.toFixed(2));
-      const result = await createPaymentIntent({ total: totalParaEnvio, items: itemsString, method: ['card'] });
+      const orderId = `GN-${Math.floor(100000 + Math.random() * 900000)}`;
+      const enderecoFormatado = `${customer.rua}, ${customer.numero} ${customer.complemento ? `(${customer.complemento})` : ''} - ${customer.bairro}, ${customer.cidade}-${customer.estado} | CEP: ${customer.cep}`;
       
-      setClientSecret(result.data.clientSecret);
+      // 1. Salva o pedido no banco de dados primeiro
+      await setDoc(doc(db, "pedidos", orderId), {
+        pedidoId: orderId,
+        valorTotal: totalParaEnvio,
+        status: `AGUARDANDO MERCADO PAGO`,
+        itens: itemsString,
+        nome: customer.nome, 
+        cpf: customer.cpf,
+        telefone: customer.telefone,
+        endereco: enderecoFormatado,
+        freteEscolhido: freteSelecionado ? freteSelecionado.name : 'Não informado',
+        data: serverTimestamp()
+      });
+
+      // 2. Chama o Firebase para gerar o link do Mercado Pago
+      const criarPagamento = httpsCallable(functions, 'criarPreferenciaMercadoPago');
+      const result = await criarPagamento({ 
+        total: totalParaEnvio, 
+        items: itemsString, 
+        orderId: orderId,
+        customer: customer 
+      });
+      
+      // 3. Redireciona o cliente para a tela oficial do Mercado Pago
+      window.location.href = result.data.initPoint;
+
     } catch (error) {
       console.error("Erro:", error);
-      alert("Erro ao iniciar pagamento.");
+      alert("Erro ao conectar com o Mercado Pago. Tente novamente.");
     } finally {
       setIsInitializingPayment(false);
     }
@@ -372,7 +287,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     }
   };
 
-  // TELA DE SUCESSO PIX / BOLETO
   if (pixOrder) {
     const WHATSAPP_NUMBER = "5516988265500";
     const message = `Fala Groove Nation! ✌️\n\nAcabei de gerar o pedido *${pixOrder.id}* no site e quero finalizar via *${pixOrder.method}*.\n\n*Meus Dados:*\n👤 Nome: ${pixOrder.customer.nome}\n📦 Endereço: ${pixOrder.enderecoFormatado}\n\n*Valor Total:* R$ ${pixOrder.total.toFixed(2).replace('.', ',')}\n*Itens:* ${pixOrder.items}`;
@@ -414,10 +328,8 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
       {isOpen && (
         <>
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-sm" />
-          {/* 👇 CORREÇÃO AQUI: Removido a classe 'relative' conflitante do final */}
           <motion.div initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 25, stiffness: 200 }} className="fixed top-0 right-0 h-full w-full max-w-md z-[101] bg-neutral-950 border-l border-neutral-800 shadow-2xl flex flex-col">
             
-            {/* NOVO: TELA DE RECUPERAÇÃO DE CARRINHO (POP-UP VIP) */}
             <AnimatePresence>
               {showRecoveryPopup && (
                 <motion.div 
@@ -453,31 +365,17 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
               )}
             </AnimatePresence>
 
-            {/* CABEÇALHO */}
             <div className="p-6 border-b border-neutral-800 flex justify-between items-center bg-black shrink-0">
               <div className="flex items-center gap-3">
-                {checkoutStep > 1 && !clientSecret && (
+                {checkoutStep > 1 && (
                   <button onClick={() => setCheckoutStep(checkoutStep - 1)} className="text-gray-500 hover:text-white"><ArrowRight size={20} className="rotate-180"/></button>
                 )}
-                <h2 className="text-xl font-black text-white italic tracking-widest uppercase">{clientSecret ? 'CHECKOUT SEGURO' : titulos[checkoutStep]}</h2>
+                <h2 className="text-xl font-black text-white italic tracking-widest uppercase">{titulos[checkoutStep]}</h2>
               </div>
               <button onClick={onClose} className="text-gray-400 hover:text-white transition-colors"><X size={28}/></button>
             </div>
             
-            {/* AMBIENTE STRIPE */}
-            {clientSecret && (
-              <div className="p-6 flex-1 flex flex-col bg-neutral-900 overflow-hidden">
-                <div className="flex items-center justify-center gap-2 mb-4 text-purple-400 shrink-0"><Lock size={16} /><span className="text-xs font-bold tracking-[0.2em] uppercase">Ambiente Criptografado</span></div>
-                <div className="flex-1 overflow-hidden">
-                  <Elements stripe={stripePromise} options={{ clientSecret, appearance: { theme: 'night', variables: { colorPrimary: '#9333ea' } } }}>
-                    <CheckoutForm total={total} onBack={() => setClientSecret(null)} />
-                  </Elements>
-                </div>
-              </div>
-            )}
-
-            {/* ETAPA 1: CARRINHO (Produtos + Cupom + Frete) */}
-            {!clientSecret && checkoutStep === 1 && (
+            {checkoutStep === 1 && (
               <>
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   {cartItems.length === 0 ? (
@@ -508,11 +406,9 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                   )}
                 </div>
                 
-                {/* FOOTER DO CARRINHO */}
                 {cartItems.length > 0 && (
                   <div className="p-6 bg-black border-t border-neutral-800 flex flex-col gap-4 shrink-0">
                     
-                    {/* ÁREA DE CUPOM */}
                     <div className="flex flex-col gap-2">
                       {!appliedCoupon ? (
                         <div className="flex gap-2">
@@ -525,7 +421,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                       {couponMessage.text && !appliedCoupon && (<p className={`text-[10px] font-bold tracking-widest uppercase mt-1 ${couponMessage.type === 'error' ? 'text-red-500' : 'text-green-500'}`}>{couponMessage.text}</p>)}
                     </div>
 
-                    {/* ÁREA DE FRETE (MELHOR ENVIO) */}
                     <div className="border-t border-neutral-800/50 pt-4">
                       <span className="text-[10px] font-black text-gray-400 tracking-widest uppercase block mb-2">Calcular Frete</span>
                       <div className="flex gap-2 mb-3">
@@ -535,7 +430,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                         </button>
                       </div>
 
-                     {/* RESULTADOS DO FRETE */}
                       {opcoesFrete.length > 0 && (
                         <div className="space-y-2 max-h-[120px] overflow-y-auto pr-1">
                           {opcoesFrete.map((frete) => (
@@ -549,7 +443,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                                 <span className="text-gray-500 text-[9px] uppercase">Chega em {frete.delivery_time} dias úteis</span>
                               </div>
                               
-                              {/* 👇 MÁGICA DO TEXTO GRÁTIS AQUI 👇 */}
                               <span className="text-green-500 font-black text-xs tracking-widest uppercase">
                                 GRÁTIS
                               </span>
@@ -560,7 +453,6 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                       )}
                     </div>
 
-                    {/* TOTAIS E BOTÃO */}
                     <div className="flex justify-between items-center mt-2 pt-4 border-t border-neutral-800/50">
                       <div className="flex flex-col">
                         <span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span>
@@ -569,7 +461,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                       <span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span>
                     </div>
                     
-                    <button onClick={handleContinuarStep1} className="w-full bg-white hover:bg-purple-600 text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2">
+                    <button onClick={handleContinuarStep1} className="w-full bg-white hover:bg-[#009EE3] text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 mt-2">
                       CONTINUAR <ArrowRight size={16} />
                     </button>
                   </div>
@@ -577,8 +469,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
               </>
             )}
 
-            {/* ETAPA 2: DADOS DE ENTREGA */}
-            {!clientSecret && checkoutStep === 2 && (
+            {checkoutStep === 2 && (
               <>
                 <div className="flex-1 overflow-y-auto p-6 space-y-4">
                   <div className="space-y-3">
@@ -608,36 +499,40 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                   </div>
                 </div>
                 <div className="p-6 bg-black border-t border-neutral-800 shrink-0">
-                  <button onClick={goToPayment} className="w-full bg-white hover:bg-purple-600 text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2">
+                  <button onClick={goToPayment} className="w-full bg-white hover:bg-[#009EE3] text-black hover:text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2">
                     IR PARA PAGAMENTO <ArrowRight size={16} />
                   </button>
                 </div>
               </>
             )}
 
-            {/* ETAPA 3: FORMA DE PAGAMENTO */}
-            {!clientSecret && checkoutStep === 3 && (
+            {checkoutStep === 3 && (
               <div className="flex-1 flex flex-col">
                 <div className="p-6 flex-1 overflow-y-auto">
                   <div className="bg-neutral-900/50 border border-neutral-800 p-4 rounded-lg mb-6">
                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Entregar para:</p>
                     <p className="text-white text-sm font-bold">{customer.nome}</p>
                     <p className="text-gray-400 text-xs mt-1">{customer.rua}, {customer.numero} - {customer.cidade}/{customer.estado}</p>
-                    <p className="text-purple-400 text-[10px] font-bold mt-2 uppercase tracking-widest">🚚 Frete: {freteSelecionado.name}</p>
+                    <p className="text-[#009EE3] text-[10px] font-bold mt-2 uppercase tracking-widest">🚚 Frete: {freteSelecionado.name}</p>
                   </div>
 
                   <div className="flex flex-col gap-3">
-                    <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">Selecione a forma de pagamento</label>
+                    <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">Como prefere pagar?</label>
                     <div className="grid grid-cols-3 gap-2">
-                      <button onClick={() => setPaymentMethod('card')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'card' ? 'border-purple-500 bg-purple-500/10 text-purple-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>💳 Cartão</button>
+                      <button onClick={() => setPaymentMethod('card')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'card' ? 'border-[#009EE3] bg-[#009EE3]/10 text-[#009EE3]' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>💳 Online</button>
                       <button onClick={() => setPaymentMethod('boleto')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'boleto' ? 'border-white bg-white/10 text-white' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>📄 Boleto</button>
-                      <button onClick={() => setPaymentMethod('pix')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'pix' ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>💠 Pix</button>
+                      <button onClick={() => setPaymentMethod('pix')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'pix' ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>💠 Pix VIP</button>
                     </div>
                   </div>
 
+                  {paymentMethod === 'card' && (
+                    <div className="bg-[#009EE3]/10 border border-[#009EE3]/20 p-3 rounded text-center mt-4">
+                      <p className="text-[#009EE3] text-[10px] font-bold uppercase tracking-widest leading-relaxed">💳 Você será redirecionado para o ambiente seguro do Mercado Pago.</p>
+                    </div>
+                  )}
                   {(paymentMethod === 'pix' || paymentMethod === 'boleto') && (
                     <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded text-center mt-4">
-                      <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">⚠️ Pagamentos via {paymentMethod === 'pix' ? 'Pix' : 'Boleto'} são gerados e finalizados direto no nosso WhatsApp para agilizar o envio.</p>
+                      <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">⚠️ Pagamentos via {paymentMethod === 'pix' ? 'Pix' : 'Boleto'} são gerados e finalizados direto no nosso WhatsApp VIP para agilizar o envio.</p>
                     </div>
                   )}
                 </div>
@@ -645,11 +540,13 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                 <div className="p-6 bg-black border-t border-neutral-800 shrink-0">
                   <div className="flex justify-between items-center mb-4"><span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span><span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span></div>
                   
+                  {/* 👇 BOTÃO DO MERCADO PAGO AQUI 👇 */}
                   {paymentMethod === 'card' && (
-                    <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-purple-600 hover:bg-purple-500 text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70">
-                      {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'PAGAR COM CARTÃO'} <ArrowRight size={16} />
+                    <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-[#009EE3] hover:bg-[#0089C4] text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_0_15px_rgba(0,158,227,0.3)]">
+                      {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'PAGAR COM MERCADO PAGO'} <ArrowRight size={16} />
                     </button>
                   )}
+                  
                   {paymentMethod === 'boleto' && (
                     <button onClick={handleWhatsAppCheckout} disabled={isProcessingPix} className="w-full bg-white hover:bg-gray-200 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70">
                       {isProcessingPix ? <Loader2 className="animate-spin" size={20} /> : 'GERAR PEDIDO BOLETO'} <ArrowRight size={16} />
@@ -669,6 +566,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
     </AnimatePresence>
   );
 };
+
 // ==========================================
 // COMPONENTE: ROLETA DE DESCONTOS
 // ==========================================
@@ -810,10 +708,10 @@ const ProductCard = ({ product, onAddToCart }) => {
     </motion.div>
   );
 };
+
 // ==========================================
 // COMPONENTE: VISUALIZAÇÃO HOME E CATEGORIAS (VITRINE)
 // ==========================================
-// 👇 Agora recebemos currentView e setCurrentView direto do App
 const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
   const [products, setProducts] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -837,59 +735,6 @@ const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
   const dropsProducts = products.filter(p => p.category === 'drops' || !p.category);
   const oversizedProducts = products.filter(p => p.category === 'oversized');
   const croppedProducts = products.filter(p => p.category === 'cropped');
-
-  // FUNÇÃO REUTILIZÁVEL PARA RENDERIZAR O CARD DO PRODUTO
-  const renderProductCard = (product) => (
-    <motion.div 
-      key={product.id} 
-      initial={{ opacity: 0, y: 20 }} 
-      whileInView={{ opacity: 1, y: 0 }} 
-      viewport={{ once: true }} 
-      className="group relative flex flex-col"
-    >
-      <div className="relative aspect-[3/4] bg-neutral-900 mb-4 overflow-hidden rounded-sm cursor-pointer border border-purple-900 group-hover:border-purple-500 transition-all duration-500 group-hover:shadow-[0_0_15px_rgba(147,51,234,0.3)]">
-        
-        {product.tag && (
-          <div className="absolute top-3 left-3 z-20 bg-white text-black text-[9px] font-black px-3 py-1 uppercase tracking-widest shadow-lg">
-            {product.tag}
-          </div>
-        )}
-        
-        <img 
-          src={product.imgFront || product.img} 
-          alt={product.name} 
-          className={`absolute inset-0 w-full h-full object-cover opacity-90 transition-all duration-700 z-10 ${product.imgBack ? 'group-hover:opacity-0' : 'group-hover:opacity-100 group-hover:scale-105'}`} 
-        />
-        
-        {product.imgBack && (
-          <img 
-            src={product.imgBack} 
-            alt={`${product.name} - Verso`} 
-            className="absolute inset-0 w-full h-full object-cover opacity-0 group-hover:opacity-100 group-hover:scale-105 transition-all duration-700 z-15" 
-          />
-        )}
-        
-        <div className="absolute bottom-0 left-0 w-full p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300 z-20">
-          <button 
-            onClick={() => onAddToCart(product)} 
-            disabled={product.stock <= 0} 
-            className={`w-full font-black text-xs py-4 uppercase tracking-widest transition-colors ${product.stock > 0 ? 'bg-purple-600 text-white hover:bg-white hover:text-black' : 'bg-neutral-950/80 text-gray-500 backdrop-blur-md cursor-not-allowed'}`}
-          >
-            {product.stock > 0 ? 'Adicionar ao Carrinho' : 'Esgotado'}
-          </button>
-        </div>
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity z-10" />
-      </div>
-      
-      <div className="flex flex-col px-1">
-        <h4 className="font-bold text-sm text-neutral-300 uppercase tracking-widest">{product.name}</h4>
-        <div className="flex items-center justify-between mt-2">
-          <span className="font-black text-white text-lg">R$ {product.price?.toFixed(2).replace('.', ',')}</span>
-          {product.stock <= 5 && product.stock > 0 && <span className="text-[9px] text-red-500 font-bold uppercase tracking-wider animate-pulse">Últimas Unidades</span>}
-        </div>
-      </div>
-    </motion.div>
-  );
 
   // ==========================================
   // ABA DE CATEGORIA ESPECÍFICA (Oversized ou Cropped)
@@ -1018,7 +863,6 @@ const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
   );
 };
 
-
 // ==========================================
 // COMPONENTE PRINCIPAL (APP)
 // ==========================================
@@ -1026,7 +870,6 @@ const App = () => {
   const isUnderMaintenance = false; 
   if (isUnderMaintenance) return <MaintenanceView />;
 
-  // 👇 currentPage agora engloba as categorias também!
   const [currentPage, setCurrentPage] = useState('home');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showNavbar, setShowNavbar] = useState(true);
@@ -1053,7 +896,7 @@ const App = () => {
 
   const addToCart = (product, size) => {
     setCartItems(prev => {
-      const cartItemId = `${product.id}-${size}`; // Cria o identificador único
+      const cartItemId = `${product.id}-${size}`; 
       const existing = prev.find(item => item.cartItemId === cartItemId);
       
       if (existing) {
@@ -1061,7 +904,6 @@ const App = () => {
           item.cartItemId === cartItemId ? { ...item, quantity: item.quantity + 1 } : item
         );
       }
-      // Adiciona o novo item salvando a prop 'size' e 'cartItemId'
       return [...prev, { ...product, size, quantity: 1, cartItemId }];
     });
     setIsCartOpen(true);
@@ -1083,7 +925,7 @@ const App = () => {
     if (page === 'admin') setIsAdminRoute(true);
     else { 
       setIsAdminRoute(false); 
-      setCurrentPage(page); // 👈 Clicar no Logo ou Políticas vai redefinir a página
+      setCurrentPage(page); 
     }
     setIsMenuOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -1097,12 +939,10 @@ const App = () => {
   return (
     <div className="min-h-screen bg-neutral-950 text-white font-sans selection:bg-purple-500 pt-10">
       <CartSidebar isOpen={isCartOpen} onClose={() => setIsCartOpen(false)} cartItems={cartItems} onUpdateQuantity={updateQuantity} onRemoveItem={removeFromCart} />
-      {/* Certifique-se de que o componente TopAnnouncementBar está importado no topo do arquivo se usar ele aqui */}
       
       <nav className={`fixed top-0 w-full z-50 bg-neutral-950/90 backdrop-blur-md border-b border-neutral-900 transition-transform duration-300 ${showNavbar ? 'translate-y-0' : '-translate-y-[140%]'}`}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between items-center h-20">
-            {/* O Logo agora reseta perfeitamente para a página inicial */}
             <div onClick={() => handleNavClick('home')} className="cursor-pointer"><img src={logoGroove} alt="Groove Nation" className="h-20 md:h-20 w-auto object-contain hover:opacity-80 transition-opacity" /></div>
             <div className="hidden md:flex space-x-10 items-center">
               <button onClick={() => handleNavClick('privacy')} className="text-xs font-bold tracking-[0.2em] uppercase text-gray-300 hover:text-white transition-colors">Políticas</button>
@@ -1122,11 +962,10 @@ const App = () => {
         </div>
       </nav>
       
-      {/* 👇 LÓGICA DE RENDERIZAÇÃO MELHORADA */}
       {['home', 'oversized', 'cropped'].includes(currentPage) ? (
         <HomeView currentView={currentPage} setCurrentView={setCurrentPage} onAddToCart={addToCart} />
       ) : currentPage === 'privacy' ? (
-        <PrivacyView /> // (Certifique-se de que o PrivacyView continua no seu arquivo)
+        <PrivacyView /> 
       ) : null}
 
       <footer className="bg-black py-16 border-t border-neutral-900">
@@ -1145,11 +984,8 @@ const App = () => {
       </footer>
 
       <div className="fixed bottom-6 right-6 z-50"><a href="https://wa.me/5516988265500" target="_blank" rel="noopener noreferrer" className="bg-[#25D366] text-white p-4 rounded-full shadow-[0_0_20px_rgba(37,211,102,0.3)] hover:scale-110 transition-transform flex items-center justify-center"><MessageCircle size={28} fill="white" /></a></div>
-    
     </div>
-    
   );
-  
 };
 
 export default App;

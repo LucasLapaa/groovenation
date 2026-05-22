@@ -1,14 +1,24 @@
 require("dotenv").config();
 const functions = require("firebase-functions");
 const admin = require("firebase-admin");
-const nodemailer = require("nodemailer"); // <-- O nosso novo carteiro
+const nodemailer = require("nodemailer"); // <-- O nosso carteiro
 const https = require('https');
+
+// Importação do Mercado Pago
+const { MercadoPagoConfig, Preference } = require('mercadopago');
 
 admin.initializeApp();
 const db = admin.firestore();
-// Substitua o process.env pela chave colada diretamente:
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-//const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+
+// =====================================
+// CONFIGURAÇÕES GERAIS (.env)
+// =====================================
+
+
+const mpClient = new MercadoPagoConfig({ 
+  accessToken: 'APP_USR-5158390033405118-052020-6e7f438dd3a74840a8371d9c8ef8fb3b-3239789766', 
+  options: { timeout: 5000 } 
+});
 
 // Configuração do servidor de e-mail (Gmail)
 const transporter = nodemailer.createTransport({
@@ -18,43 +28,64 @@ const transporter = nodemailer.createTransport({
     pass: process.env.EMAIL_PASS,
   },
 });
-
-// ==========================================
-// 1. FUNÇÃO: CRIA O PAGAMENTO
-// ==========================================
-exports.createPaymentIntent = functions.https.onCall(async (data, context) => {
+// =====================================
+// FUNÇÃO: CRIAR PAGAMENTO MERCADO PAGO
+// =====================================
+// =====================================
+// FUNÇÃO: CRIAR PAGAMENTO MERCADO PAGO
+// =====================================
+exports.criarPreferenciaMercadoPago = functions.https.onCall(async (data, context) => {
   try {
-    const valorRecebido = data.total || (data.data && data.data.total);
-    const itensRecebidos = data.items || (data.data && data.data.items);
+    // 1. O Pulo do Gato: Pega os dados, não importa como o Firebase tenha "embrulhado"
+    const payload = data.data ? data.data : data;
     
-    // Pega o que veio do frontend (pode vir como "card", "boleto" ou ["card"])
-    let rawMethod = data.method || (data.data && data.data.method) || "card";
-    
-    // FORÇAMOS a virar uma Array (lista), que é o que o Stripe exige
-    // Se vier "boleto", vira ["boleto"]. Se vier "card", vira ["card"].
-    const metodoEscolhido = Array.isArray(rawMethod) ? rawMethod : [rawMethod];
+    const { total, items, orderId, customer } = payload;
 
-    if (!valorRecebido || isNaN(valorRecebido)) throw new Error("Valor do carrinho inválido.");
+    // 2. Força o total a virar um número absoluto (evita erro se vier como texto)
+    const precoFinal = Number(total);
 
-    const amount = Math.round(parseFloat(valorRecebido) * 100);
+    // 3. Trava de segurança com raio-X
+    if (isNaN(precoFinal) || precoFinal <= 0) {
+      throw new Error(`Valor zerado ou em formato errado. O que chegou foi: ${total}`);
+    }
 
-    const paymentIntent = await stripe.paymentIntents.create({
-      amount: amount,
-      currency: "brl", // Obrigatório para Boleto no Brasil
-      payment_method_types: ["card"], // Agora sempre será uma lista []
-      metadata: {
-        produtos: itensRecebidos || "Itens não especificados",
-        loja: "Groove Nation Official"
+    const preference = new Preference(mpClient);
+
+    const response = await preference.create({
+      body: {
+        items: [
+          {
+            id: orderId || "GN-000",
+            title: 'Pedido Groove Nation',
+            description: items || "Roupas",
+            quantity: 1,
+            unit_price: precoFinal,
+            currency_id: 'BRL'
+          }
+        ],
+        payer: {
+          name: customer?.nome || "Cliente Groove",
+          email: 'contato@groovenation.com.br',
+        },
+        back_urls: {
+          success: "https://groovenation.com.br", 
+          failure: "https://groovenation.com.br",
+          pending: "https://groovenation.com.br"
+        },
+        auto_return: "approved",
+        external_reference: orderId
       }
     });
 
-    return { clientSecret: paymentIntent.client_secret };
+    return { initPoint: response.init_point };
   } catch (error) {
-    console.error("Erro no Stripe:", error.message);
-    throw new functions.https.HttpsError("internal", error.message);
+    let erroDetalhado = error.message;
+    if (error.cause) erroDetalhado += " | Motivo: " + JSON.stringify(error.cause); 
+    
+    console.error("Erro interno do servidor:", erroDetalhado);
+    throw new functions.https.HttpsError('internal', `Motivo do bloqueio: ${erroDetalhado}`);
   }
 });
-
 // ==========================================
 // 2. FUNÇÃO: WEBHOOK (Avisa da venda e envia e-mail)
 // ==========================================
