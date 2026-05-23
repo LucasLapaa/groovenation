@@ -1,24 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { ShoppingBag, Users, Tag, Ticket, Settings, LogOut, Plus, Edit2, Trash2, X, AlertCircle, Eye, CheckCircle, XCircle } from 'lucide-react';
+import { ShoppingBag, Users, Tag, Ticket, Settings, LogOut, Plus, Edit2, Trash2, X, AlertCircle, Eye, CheckCircle, XCircle, Truck, ArrowRight } from 'lucide-react';
 import { collection, query, orderBy, doc, updateDoc, setDoc, deleteDoc, onSnapshot } from 'firebase/firestore';
-import { db } from './firebase'; // Certifique-se de que o caminho aponta para o seu firebase.js
+import { db } from './firebase'; 
+import toast, { Toaster } from 'react-hot-toast'; // 👈 Importação do Toast
 import './AdminDashboard.css';
 import logoImg from './assets/groove.png';
 
 function AdminDashboard({ onLogout }) {
   const [activeTab, setActiveTab] = useState('pedidos');
 
-  // Estados da Nuvem (Firebase)
   const [orders, setOrders] = useState([]);
   const [products, setProducts] = useState([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
 
-  // Estados para o Modal de Detalhes do Pedido
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [inputsRastreio, setInputsRastreio] = useState({});
 
-  // Estados de Cupons e Configurações (Mantidos Locais por enquanto)
   const [coupons, setCoupons] = useState([]);
   const [settings, setSettings] = useState({
     adminEmail: 'contato@groovenation.com.br',
@@ -28,15 +27,10 @@ function AdminDashboard({ onLogout }) {
 
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
-
   const [isCouponModalOpen, setIsCouponModalOpen] = useState(false);
   const [editingCoupon, setEditingCoupon] = useState(null);
 
-  // ==========================================
-  // CONEXÃO EM TEMPO REAL COM A NUVEM (FIREBASE)
-  // ==========================================
   useEffect(() => {
-    // 1. Escutando Pedidos
     const qOrders = query(collection(db, "pedidos"), orderBy("data", "desc"));
     const unsubOrders = onSnapshot(qOrders, (snapshot) => {
       const listaPedidos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -44,7 +38,6 @@ function AdminDashboard({ onLogout }) {
       setIsLoadingOrders(false);
     });
 
-    // 2. Escutando Produtos (Nuvem)
     const qProducts = query(collection(db, "produtos"), orderBy("dataCriacao", "desc"));
     const unsubProducts = onSnapshot(qProducts, (snapshot) => {
       const listaProdutos = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -52,7 +45,6 @@ function AdminDashboard({ onLogout }) {
       setIsLoadingProducts(false);
     });
 
-    // 3. Carregando Cupons e Settings Locais
     setCoupons(JSON.parse(localStorage.getItem('groove_coupons')) || [
       { id: 1, code: 'SECRETGROOVE', discount: 15, validUntil: '2026-12-31' }
     ]);
@@ -65,49 +57,55 @@ function AdminDashboard({ onLogout }) {
     };
   }, []); 
 
-  // Atualizar Cupons Locais
   useEffect(() => { if (coupons.length > 0) localStorage.setItem('groove_coupons', JSON.stringify(coupons)); }, [coupons]);
 
-  // Função para atualizar status do pedido manualmente
+  // ==========================================
+  // FUNÇÕES COM OS NOVOS TOASTS
+  // ==========================================
   const handleUpdateStatus = async (orderId, newStatus) => {
     try {
       const orderRef = doc(db, "pedidos", orderId);
       await updateDoc(orderRef, { status: newStatus });
       if(selectedOrder) setSelectedOrder({ ...selectedOrder, status: newStatus });
-      alert(`✅ Status atualizado para ${newStatus}!`);
+      toast.success(`Status atualizado para ${newStatus}!`); // 👈 Toast Bonito
     } catch (error) {
       console.error("Erro ao atualizar status:", error);
-      alert("Erro ao atualizar status do pedido.");
+      toast.error("Erro ao atualizar status do pedido."); // 👈 Toast Bonito
     }
   };
 
-  // Utilitários
-  const formatarData = (timestamp) => {
-    if (!timestamp) return 'Pendente';
-    if (typeof timestamp === 'string') return timestamp;
-    const data = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-    return new Intl.DateTimeFormat('pt-BR', { 
-      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
-    }).format(data);
+  const handleSalvarRastreio = async (pedidoId) => {
+    const codigo = inputsRastreio[pedidoId];
+    if (!codigo) {
+      toast.error("Digite um código de rastreio primeiro!"); // 👈 Toast Bonito
+      return;
+    }
+    try {
+      const pedidoRef = doc(db, 'pedidos', pedidoId);
+      await updateDoc(pedidoRef, {
+        codigoRastreio: codigo,
+        status: 'ENVIADO 🚚'
+      });
+      toast.success("Rastreio salvo! Cliente notificado."); // 👈 Toast Bonito
+      setInputsRastreio(prev => ({ ...prev, [pedidoId]: '' }));
+      if (selectedOrder && selectedOrder.id === pedidoId) {
+        setSelectedOrder({ ...selectedOrder, codigoRastreio: codigo, status: 'ENVIADO 🚚' });
+      }
+    } catch (error) {
+      console.error("Erro ao salvar rastreio:", error);
+      toast.error("Erro ao salvar o código de rastreio."); // 👈 Toast Bonito
+    }
   };
 
-  const uniqueCustomers = Array.from(new Set(orders.map(o => o.email))).map(email => orders.find(o => o.email === email));
-  const totalGanhos = orders.reduce((acc, order) => acc + (order.valorTotal || 0), 0);
-
-  // ==========================================
-  // AÇÕES DE PRODUTOS (FIREBASE + CATEGORIAS)
-  // ==========================================
   const handleSaveProduct = async (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
-    
     const productId = editingProduct ? editingProduct.id : `GN-${Date.now()}`;
-    
     const productData = {
       name: formData.get('name'),
       price: parseFloat(formData.get('price')),
       stock: parseInt(formData.get('stock')),
-      category: formData.get('category'), // Salvando a categoria (Oversized/Cropped/Drops)
+      category: formData.get('category'), 
       imgFront: formData.get('imgFront'),
       imgBack: formData.get('imgBack') || "",
       dataCriacao: editingProduct ? editingProduct.dataCriacao || new Date() : new Date()
@@ -117,9 +115,10 @@ function AdminDashboard({ onLogout }) {
       await setDoc(doc(db, "produtos", productId), productData);
       setIsProductModalOpen(false);
       setEditingProduct(null);
+      toast.success(editingProduct ? "Produto atualizado!" : "Produto criado com sucesso!"); // 👈 Toast Bonito
     } catch (error) {
       console.error("Erro ao salvar produto:", error);
-      alert("Erro ao salvar produto na nuvem.");
+      toast.error("Erro ao salvar produto na nuvem.");
     }
   };
 
@@ -127,16 +126,14 @@ function AdminDashboard({ onLogout }) {
     if(window.confirm('Tem certeza que deseja excluir este produto do servidor?')) {
       try {
         await deleteDoc(doc(db, "produtos", id));
+        toast.success("Produto excluído!"); // 👈 Toast Bonito
       } catch (error) {
         console.error("Erro ao deletar produto:", error);
-        alert("Erro ao excluir produto.");
+        toast.error("Erro ao excluir produto.");
       }
     }
   };
 
-  // ==========================================
-  // AÇÕES DE CUPONS
-  // ==========================================
   const handleSaveCoupon = (e) => {
     e.preventDefault();
     const formData = new FormData(e.target);
@@ -150,6 +147,7 @@ function AdminDashboard({ onLogout }) {
     else setCoupons([...coupons, newCoupon]);
     setIsCouponModalOpen(false);
     setEditingCoupon(null);
+    toast.success("Cupom salvo com sucesso!"); // 👈 Toast Bonito
   };
 
   const handleDeleteCoupon = (id) => {
@@ -157,6 +155,7 @@ function AdminDashboard({ onLogout }) {
       const newCoupons = coupons.filter(c => c.id !== id);
       setCoupons(newCoupons);
       localStorage.setItem('groove_coupons', JSON.stringify(newCoupons));
+      toast.success("Cupom excluído!"); // 👈 Toast Bonito
     }
   };
 
@@ -178,12 +177,46 @@ function AdminDashboard({ onLogout }) {
     };
     setSettings(newSettings);
     localStorage.setItem('groove_settings', JSON.stringify(newSettings));
-    alert('✅ Configurações salvas e aplicadas na loja!');
+    toast.success('Configurações salvas e aplicadas na loja!'); // 👈 Toast Bonito
   };
+
+  const formatarData = (timestamp) => {
+    if (!timestamp) return 'Pendente';
+    if (typeof timestamp === 'string') return timestamp;
+    const data = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    return new Intl.DateTimeFormat('pt-BR', { 
+      day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' 
+    }).format(data);
+  };
+
+  const uniqueCustomers = Array.from(new Set(orders.map(o => o.email))).map(email => orders.find(o => o.email === email));
+  const totalGanhos = orders.reduce((acc, order) => acc + (order.valorTotal || 0), 0);
 
   return (
     <div className="admin-container">
-      {/* SIDEBAR LATERA */}
+      {/* 👇 COMPONENTE DO TOASTER (Estilizado para a marca) 👇 */}
+      <Toaster 
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: '#171717', // Fundo escuro (neutral-900)
+            color: '#fff',         // Texto branco
+            border: '1px solid #262626', // Borda sutil
+            fontSize: '14px',
+            fontWeight: 'bold',
+            letterSpacing: '1px',
+            textTransform: 'uppercase'
+          },
+          success: {
+            iconTheme: {
+              primary: '#a855f7', // Roxo do sucesso
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
+
+      {/* SIDEBAR LATERAL */}
       <aside className="sidebar">
         <div className="sidebar-header">
           <img src={logoImg} alt="Groove Nation" className="sidebar-logo" />
@@ -236,7 +269,6 @@ function AdminDashboard({ onLogout }) {
                         <td><span className={`status-badge status-${(o.status || '').toLowerCase().replace(' ', '-')}`}>{o.status}</span></td>
                         <td className="text-green-400 font-bold">R$ {o.valorTotal ? o.valorTotal.toFixed(2).replace('.', ',') : '0,00'}</td>
                         <td>
-                          {/* BOTÃO DE VER DETALHES */}
                           <button 
                             onClick={() => { setSelectedOrder(o); setIsDetailsModalOpen(true); }}
                             className="icon-btn edit" title="Ver Detalhes do Pedido"
@@ -380,10 +412,6 @@ function AdminDashboard({ onLogout }) {
 
       </main>
 
-      {/* ==================================================== */}
-      {/* MODAIS (JANELAS SUSPENSAS) */}
-      {/* ==================================================== */}
-
       {/* MODAL DE DETALHES DO PEDIDO */}
       {isDetailsModalOpen && selectedOrder && (
         <div className="admin-modal-overlay">
@@ -437,6 +465,35 @@ function AdminDashboard({ onLogout }) {
               </div>
             </div>
 
+            <div style={{marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #262626'}}>
+              <p style={{color: '#737373', fontSize: '10px', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '10px'}}>Código de Rastreio (Correios):</p>
+              <div style={{backgroundColor: '#0a0a0a', padding: '15px', borderRadius: '8px', border: '1px solid #262626', display: 'flex', flexDirection: 'column', gap: '10px'}}>
+                {selectedOrder.codigoRastreio ? (
+                  <div style={{display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                    <span style={{color: '#22c55e', fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                      <Truck size={16} /> Enviado: {selectedOrder.codigoRastreio}
+                    </span>
+                  </div>
+                ) : (
+                  <div style={{display: 'flex', gap: '10px', width: '100%'}}>
+                    <input 
+                      type="text" 
+                      placeholder="EX: BR123456789BR" 
+                      value={inputsRastreio[selectedOrder.id] || ''}
+                      onChange={(e) => setInputsRastreio({ ...inputsRastreio, [selectedOrder.id]: e.target.value.toUpperCase() })}
+                      style={{flex: 1, backgroundColor: 'black', border: '1px solid #333', borderRadius: '6px', padding: '10px', color: 'white', fontSize: '12px', outline: 'none', textTransform: 'uppercase'}}
+                    />
+                    <button 
+                      onClick={() => handleSalvarRastreio(selectedOrder.id)}
+                      style={{backgroundColor: '#9333ea', color: 'white', border: 'none', borderRadius: '6px', padding: '0 15px', fontWeight: 'bold', fontSize: '11px', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer'}}
+                    >
+                      Salvar <ArrowRight size={14} />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
         </div>
       )}
@@ -454,7 +511,6 @@ function AdminDashboard({ onLogout }) {
                 <input name="name" type="text" defaultValue={editingProduct?.name} placeholder="Ex: T-Shirt Oversized Black" required />
               </div>
               
-              {/* CAMPO NOVO DE CATEGORIA */}
               <div className="input-group" style={{marginTop: '15px'}}>
                 <label>Onde este produto vai aparecer?</label>
                 <select name="category" defaultValue={editingProduct?.category || 'drops'} required style={{width: '100%', padding: '12px', backgroundColor: '#0a0a0a', border: '1px solid #262626', color: 'white', borderRadius: '6px', outline: 'none'}}>
@@ -464,7 +520,6 @@ function AdminDashboard({ onLogout }) {
                 </select>
               </div>
 
-             {/* CORREÇÃO DO LAYOUT LADO A LADO */}
               <div style={{ display: 'flex', gap: '15px', marginTop: '20px', width: '100%' }}>
                 <div className="input-group" style={{ flex: 1, minWidth: 0 }}>
                   <label>Preço (R$)</label>
@@ -476,7 +531,6 @@ function AdminDashboard({ onLogout }) {
                 </div>
               </div>
 
-              {/* CAMPOS DAS DUAS IMAGENS */}
               <div className="input-group" style={{marginTop: '20px'}}>
                 <label>Foto Frente (ex: /produtos/1.png)</label>
                 <input name="imgFront" type="text" defaultValue={editingProduct?.imgFront} placeholder="/produtos/nome-da-foto.png" required />

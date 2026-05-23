@@ -1,7 +1,7 @@
 import { initializeApp } from "firebase/app";
 import { getFirestore } from "firebase/firestore";
 import { getFunctions } from "firebase/functions";
-
+import { getAuth } from "firebase/auth";
 // ⚠️ ATENÇÃO: Você precisa colar as chaves do seu projeto aqui!
 // Você encontra isso no painel do Firebase > Engrenagem (Configurações do projeto) > Geral > Seus aplicativos
 const firebaseConfig = {
@@ -21,3 +21,4 @@ export const db = getFirestore(app);
 
 // Exporta as funções (que o Checkout de pagamento vai usar)
 export const functions = getFunctions(app);
+export const auth = getAuth(app);

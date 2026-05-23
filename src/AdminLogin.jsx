@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Lock, ArrowRight, ShieldAlert } from 'lucide-react';
 import logoImg from './assets/groove.png'; // Confirme se o caminho da logo está certo
 
-const AdminLogin = ({ onLogin }) => {
+const AdminLogin = ({ onLogin, onBack }) => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -62,12 +62,15 @@ const AdminLogin = ({ onLogin }) => {
           </button>
         </form>
 
-        <div className="mt-8 text-center relative z-10">
-          <a href="/" className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors">
+      <div className="mt-8 text-center relative z-10">
+          <button 
+            type="button"
+            onClick={onBack} 
+            className="text-gray-500 hover:text-white text-xs font-bold uppercase tracking-widest transition-colors cursor-pointer"
+          >
             ← Voltar para a loja
-          </a>
+          </button>
         </div>
-
       </div>
     </div>
   );

@@ -7,7 +7,7 @@ import { db, functions } from './firebase';
 
 // --- FRAMER MOTION ---
 import { motion, AnimatePresence, useScroll, useTransform } from 'framer-motion';
-
+import toast, { Toaster } from 'react-hot-toast';
 // --- EMAIL JS ---
 import emailjs from '@emailjs/browser';
 
@@ -25,6 +25,7 @@ import AdminDashboard from './AdminDashboard';
 import AdminLogin from './AdminLogin';
 import logoGroove from './assets/groove.png';
 import MaintenanceView from './MaintenanceView';
+import MinhaConta from './MinhaConta';
 
 // ==========================================
 // BANCO DE PRODUTOS PADRÃO (Para vitrine)
@@ -37,6 +38,30 @@ const defaultProducts = [];
 const PrivacyView = () => {
   return (
     <div className="pt-40 pb-20 min-h-screen bg-neutral-950 px-4">
+     <Toaster 
+        position="top-center"
+        containerStyle={{
+          top: 100, /* 👈 Isso empurra o aviso para baixo do seu menu */
+        }}
+        toastOptions={{
+          style: {
+            background: '#0a0a0a', 
+            color: '#fff',
+            border: '1px solid #262626',
+            fontSize: '12px',
+            fontWeight: '900',
+            textTransform: 'uppercase',
+            letterSpacing: '1px',
+            padding: '16px 24px',
+          },
+          success: {
+            iconTheme: {
+              primary: '#a855f7',
+              secondary: '#fff',
+            },
+          },
+        }}
+      />
       <div className="max-w-4xl mx-auto text-center">
         <h1 className="text-4xl md:text-6xl font-black text-white tracking-tighter mb-4">POLÍTICA DE <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-pink-500">PRIVACIDADE</span></h1>
         <p className="text-gray-400 max-w-2xl mx-auto mb-16">Transparência total. Aqui explicamos como cuidamos dos seus dados enquanto você cuida do seu estilo.</p>
@@ -506,6 +531,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
               </>
             )}
 
+           {/* ETAPA 3: PAGAMENTO DIRETO */}
             {checkoutStep === 3 && (
               <div className="flex-1 flex flex-col">
                 <div className="p-6 flex-1 overflow-y-auto">
@@ -513,50 +539,26 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, onRemoveIte
                     <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest mb-1">Entregar para:</p>
                     <p className="text-white text-sm font-bold">{customer.nome}</p>
                     <p className="text-gray-400 text-xs mt-1">{customer.rua}, {customer.numero} - {customer.cidade}/{customer.estado}</p>
-                    <p className="text-[#009EE3] text-[10px] font-bold mt-2 uppercase tracking-widest">🚚 Frete: {freteSelecionado.name}</p>
+                    <p className="text-purple-400 text-[10px] font-bold mt-2 uppercase tracking-widest">🚚 Frete: {freteSelecionado?.name}</p>
                   </div>
 
-                  <div className="flex flex-col gap-3">
-                    <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest text-center">Como prefere pagar?</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      <button onClick={() => setPaymentMethod('card')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'card' ? 'border-[#009EE3] bg-[#009EE3]/10 text-[#009EE3]' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>💳 Online</button>
-                      <button onClick={() => setPaymentMethod('boleto')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'boleto' ? 'border-white bg-white/10 text-white' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>📄 Boleto</button>
-                      <button onClick={() => setPaymentMethod('pix')} className={`border py-3 rounded text-[10px] sm:text-xs font-bold uppercase tracking-widest transition-colors ${paymentMethod === 'pix' ? 'border-green-500 bg-green-500/10 text-green-400' : 'border-neutral-800 text-gray-500 hover:border-neutral-600'}`}>💠 Pix VIP</button>
-                    </div>
+                  <div className="bg-purple-500/10 border border-purple-500/20 p-6 rounded-lg text-center mt-4">
+                    <Lock size={32} className="text-purple-500 mx-auto mb-3" />
+                    <h4 className="text-white text-sm font-black italic uppercase tracking-widest mb-2">Ambiente Seguro</h4>
+                    <p className="text-gray-400 text-[10px] font-bold uppercase tracking-widest leading-relaxed">Você poderá escolher pagar via Pix, Boleto ou Cartão na próxima tela.</p>
                   </div>
-
-                  {paymentMethod === 'card' && (
-                    <div className="bg-[#009EE3]/10 border border-[#009EE3]/20 p-3 rounded text-center mt-4">
-                      <p className="text-[#009EE3] text-[10px] font-bold uppercase tracking-widest leading-relaxed">💳 Você será redirecionado para o ambiente seguro do Mercado Pago.</p>
-                    </div>
-                  )}
-                  {(paymentMethod === 'pix' || paymentMethod === 'boleto') && (
-                    <div className="bg-yellow-500/10 border border-yellow-500/20 p-3 rounded text-center mt-4">
-                      <p className="text-yellow-500 text-[10px] font-bold uppercase tracking-widest leading-relaxed">⚠️ Pagamentos via {paymentMethod === 'pix' ? 'Pix' : 'Boleto'} são gerados e finalizados direto no nosso WhatsApp VIP para agilizar o envio.</p>
-                    </div>
-                  )}
                 </div>
 
                 <div className="p-6 bg-black border-t border-neutral-800 shrink-0">
-                  <div className="flex justify-between items-center mb-4"><span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span><span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span></div>
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="text-gray-400 uppercase tracking-widest text-xs font-bold">Total a Pagar</span>
+                    <span className="text-2xl font-black text-white">R$ {total.toFixed(2).replace('.', ',')}</span>
+                  </div>
                   
-                  {/* 👇 BOTÃO DO MERCADO PAGO AQUI 👇 */}
-                  {paymentMethod === 'card' && (
-                    <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-[#009EE3] hover:bg-[#0089C4] text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_0_15px_rgba(0,158,227,0.3)]">
-                      {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'PAGAR COM MERCADO PAGO'} <ArrowRight size={16} />
-                    </button>
-                  )}
-                  
-                  {paymentMethod === 'boleto' && (
-                    <button onClick={handleWhatsAppCheckout} disabled={isProcessingPix} className="w-full bg-white hover:bg-gray-200 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70">
-                      {isProcessingPix ? <Loader2 className="animate-spin" size={20} /> : 'GERAR PEDIDO BOLETO'} <ArrowRight size={16} />
-                    </button>
-                  )}
-                  {paymentMethod === 'pix' && (
-                    <button onClick={handleWhatsAppCheckout} disabled={isProcessingPix} className="w-full bg-green-500 hover:bg-green-400 text-black transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_0_15px_rgba(34,197,94,0.2)]">
-                      {isProcessingPix ? <Loader2 className="animate-spin" size={20} /> : 'GERAR PEDIDO PIX'} <ArrowRight size={16} />
-                    </button>
-                  )}
+                  {/* 👇 BOTÃO ÚNICO E BLINDADO 👇 */}
+                  <button onClick={startCheckout} disabled={isInitializingPayment} className="w-full bg-purple-600 hover:bg-purple-500 text-white transition-all font-black py-4 rounded tracking-widest uppercase text-sm flex items-center justify-center gap-2 disabled:opacity-70 shadow-[0_0_15px_rgba(147,51,234,0.3)]">
+                    {isInitializingPayment ? <Loader2 className="animate-spin" size={20} /> : 'FINALIZAR PAGAMENTO'} <ArrowRight size={16} />
+                  </button>
                 </div>
               </div>
             )}
@@ -586,7 +588,7 @@ const SpinAndWin = () => {
   const [rotation, setRotation] = useState(0);
   const [couponCode, setCouponCode] = useState('');
   const [copied, setCopied] = useState(false);
-
+  const [currentTab, setCurrentTab] = useState('loja');
   const spin = () => {
     if (isSpinning || hasSpun) return;
     setIsSpinning(true);
@@ -784,7 +786,7 @@ const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
       {/* HERO SECTION */}
       <section className="relative h-[95vh] w-full flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <img src="https://images.unsplash.com/photo-1516826957135-700ede19c6ce?q=80&w=2070&auto=format&fit=crop" alt="Coleção Groove" className="w-full h-full object-cover opacity-60" />
+          
           <div className="absolute inset-0 bg-gradient-to-t from-neutral-950 via-neutral-950/20 to-neutral-950/60" />
         </div>
         <div className="relative z-10 text-center px-4 w-full flex flex-col items-center mt-20">
@@ -907,6 +909,7 @@ const App = () => {
       return [...prev, { ...product, size, quantity: 1, cartItemId }];
     });
     setIsCartOpen(true);
+    toast.success(`${product.name} na sacola!`);
   };
 
   const updateQuantity = (cartItemId, delta) => {
@@ -946,12 +949,27 @@ const App = () => {
             <div onClick={() => handleNavClick('home')} className="cursor-pointer"><img src={logoGroove} alt="Groove Nation" className="h-20 md:h-20 w-auto object-contain hover:opacity-80 transition-opacity" /></div>
             <div className="hidden md:flex space-x-10 items-center">
               <button onClick={() => handleNavClick('privacy')} className="text-xs font-bold tracking-[0.2em] uppercase text-gray-300 hover:text-white transition-colors">Políticas</button>
+              
+              {/* 👇 BOTÃO MINHA CONTA ADICIONADO AQUI 👇 */}
+              <button 
+                onClick={() => handleNavClick('conta')} 
+                className={`text-xs font-bold tracking-[0.2em] uppercase transition-colors ${currentPage === 'conta' ? 'text-purple-500' : 'text-gray-300 hover:text-white'}`}
+              >
+                Minha Conta
+              </button>
+
               <div className="relative cursor-pointer flex items-center gap-2 text-white hover:text-purple-400 transition-colors" onClick={() => setIsCartOpen(true)}>
                 <ShoppingBag size={20} /><span className="text-xs font-bold tracking-widest uppercase">Sacola</span>
                 {cartItems.length > 0 && (<span className="absolute -top-1 -left-2 bg-purple-600 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">{cartItems.reduce((acc, item) => acc + item.quantity, 0)}</span>)}
               </div>
             </div>
             <div className="md:hidden flex items-center gap-6">
+              
+              {/* 👇 ÍCONE MINHA CONTA NO MOBILE 👇 */}
+              <button onClick={() => handleNavClick('conta')} className="text-white hover:text-purple-400 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+              </button>
+
               <div className="relative cursor-pointer" onClick={() => setIsCartOpen(true)}>
                 <ShoppingBag className="text-white" />
                 {cartItems.length > 0 && <span className="absolute -top-2 -right-2 bg-purple-600 text-white text-[10px] font-bold w-5 h-5 rounded-full flex items-center justify-center">{cartItems.reduce((acc, item) => acc + item.quantity, 0)}</span>}
@@ -962,28 +980,146 @@ const App = () => {
         </div>
       </nav>
       
-      {['home', 'oversized', 'cropped'].includes(currentPage) ? (
-        <HomeView currentView={currentPage} setCurrentView={setCurrentPage} onAddToCart={addToCart} />
-      ) : currentPage === 'privacy' ? (
-        <PrivacyView /> 
-      ) : null}
+      {/* 👇 AQUI ESTÁ A LÓGICA DE RENDERIZAÇÃO 👇 */}
+      <main className="pt-10">
+        {['home', 'oversized', 'cropped'].includes(currentPage) ? (
+          <HomeView currentView={currentPage} setCurrentView={setCurrentPage} onAddToCart={addToCart} />
+        ) : currentPage === 'privacy' ? (
+          <PrivacyView /> 
+        ) : currentPage === 'conta' ? (
+          <MinhaConta />
+        ) : null}
+      </main>
 
-      <footer className="bg-black py-16 border-t border-neutral-900">
-        <div className="max-w-7xl mx-auto px-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-12 text-center md:text-left mb-12">
-            <div className="flex flex-col items-center md:items-start"><img src={logoGroove} alt="Groove" className="h-8 w-auto mb-6 opacity-50" /><p className="text-gray-500 text-sm leading-relaxed max-w-xs">Streetwear e Bodybuilding. O silêncio forja os campeões. Desenvolvido para aguentar o tranco.</p></div>
-            <div><h4 className="font-bold mb-6 text-white uppercase tracking-[0.2em] text-xs">Suporte</h4><ul className="space-y-4 text-gray-500 text-sm"><li><button onClick={() => handleNavClick('privacy')} className="hover:text-purple-400 transition-colors uppercase tracking-widest text-[10px] font-bold">Privacidade</button></li><li><a href="#" className="hover:text-purple-400 transition-colors uppercase tracking-widest text-[10px] font-bold">Trocas e Devoluções</a></li></ul></div>
-            <div><h4 className="font-bold mb-6 text-white uppercase tracking-[0.2em] text-xs">Conecte-se</h4><div className="flex space-x-6 justify-center md:justify-start"><a href="#" className="text-gray-500 hover:text-white transition-colors"><Instagram size={20} /></a><a href="#" className="text-gray-500 hover:text-white transition-colors"><Facebook size={20} /></a></div></div>
+    {/* ================================================= */}
+      {/* FOOTER PREMIUM DA GROOVE NATION (COM SELO BLINDADO) */}
+      {/* ================================================= */}
+    <footer className="bg-black pt-20 pb-10 border-t border-neutral-900 mt-20 relative overflow-hidden pointer-events-none">
+        
+        {/* Efeito de Brilho de Fundo (Glow) */}
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-3/4 h-32 bg-purple-900/10 blur-[100px] pointer-events-none"></div>
+
+        <div className="max-w-7xl mx-auto px-4 relative z-10">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
+            
+            {/* Col 1: Marca (Ocupa 2 colunas no desktop) */}
+            <div className="md:col-span-2">
+              <img src={logoGroove} alt="Groove Nation" className="h-10 w-auto mb-6" />
+              <p className="text-gray-400 text-xs leading-relaxed max-w-sm font-medium">
+                Streetwear de alta performance e Old School Bodybuilding. O silêncio forja os campeões. Desenvolvido para aguentar o tranco.
+              </p>
+            </div>
+
+            {/* Col 2: Suporte */}
+            <div>
+              <h4 className="text-white font-black uppercase tracking-[0.2em] text-xs mb-6">Suporte</h4>
+              <ul className="space-y-4">
+                <li>
+                  <button onClick={() => { handleNavClick('privacy'); window.scrollTo(0, 0); }} className="text-gray-500 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 group">
+                    <span className="w-0 h-px bg-purple-500 transition-all duration-300 group-hover:w-4"></span>
+                    Privacidade
+                  </button>
+                </li>
+                <li>
+                  <a href="#" className="text-gray-500 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 group">
+                    <span className="w-0 h-px bg-purple-500 transition-all duration-300 group-hover:w-4"></span>
+                    Trocas e Devoluções
+                  </a>
+                </li>
+                <li>
+                  <button onClick={() => { handleNavClick('conta'); window.scrollTo(0, 0); }} className="text-gray-500 hover:text-white transition-colors text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 group">
+                    <span className="w-0 h-px bg-purple-500 transition-all duration-300 group-hover:w-4"></span>
+                    Rastrear Pedido
+                  </button>
+                </li>
+              </ul>
+            </div>
+
+            {/* Col 3: Social */}
+            <div>
+              <h4 className="text-white font-black uppercase tracking-[0.2em] text-xs mb-6">Conecte-se</h4>
+              <div className="flex gap-4">
+                <a href="#" className="w-10 h-10 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-gray-400 hover:text-white hover:border-purple-500 hover:bg-purple-500/20 transition-all">
+                  <Instagram size={18} />
+                </a>
+                <a href="#" className="w-10 h-10 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-gray-400 hover:text-white hover:border-purple-500 hover:bg-purple-500/20 transition-all">
+                  <Facebook size={18} />
+                </a>
+              </div>
+            </div>
           </div>
-          <div className="flex flex-col md:flex-row justify-between items-center py-8 border-t border-neutral-900/50 gap-8">
-            <div className="flex flex-col items-center md:items-start gap-3"><span className="text-gray-500 text-[10px] font-bold uppercase tracking-[0.2em]">Pagamento Seguro</span><div className="flex gap-2 flex-wrap justify-center"><div className="h-8 px-3 border border-neutral-800 rounded bg-neutral-900 flex items-center justify-center hover:border-purple-500 transition-colors cursor-default"><img src="https://cdn.simpleicons.org/pix/32BCAD" alt="Pix" className="h-4" /></div><div className="h-8 px-3 border border-neutral-800 rounded bg-neutral-900 flex items-center justify-center hover:border-purple-500 transition-colors cursor-default gap-1 text-white"><Barcode size={16} /><span className="text-[10px] font-bold uppercase tracking-widest">Boleto</span></div><div className="h-8 px-3 border border-neutral-800 rounded bg-neutral-900 flex items-center justify-center hover:border-purple-500 transition-colors cursor-default"><img src="https://cdn.simpleicons.org/visa/white" alt="Visa" className="h-3" /></div><div className="h-8 px-3 border border-neutral-800 rounded bg-neutral-900 flex items-center justify-center hover:border-purple-500 transition-colors cursor-default"><img src="https://cdn.simpleicons.org/mastercard" alt="Mastercard" className="h-4" /></div><div className="h-8 px-3 border border-neutral-800 rounded bg-neutral-900 flex items-center justify-center hover:border-purple-500 transition-colors cursor-default"><img src="https://cdn.simpleicons.org/americanexpress/white" alt="American Express" className="h-4" /></div></div></div>
-            <div className="flex flex-col items-center md:items-end gap-3"><span className="text-gray-500 text-[10px] font-bold uppercase tracking-[0.2em]">Segurança</span><div className="flex gap-3 flex-wrap justify-center"><div className="flex items-center gap-2 text-gray-400 bg-neutral-900 h-8 px-4 rounded border border-neutral-800 cursor-default"><ShieldCheck size={16} className="text-green-500" /><span className="text-[10px] font-bold uppercase tracking-widest">Site Seguro</span></div><div className="flex items-center gap-2 text-gray-400 bg-neutral-900 h-8 px-4 rounded border border-neutral-800 cursor-default"><Lock size={16} className="text-purple-500" /><span className="text-[10px] font-bold uppercase tracking-widest">SSL 256-Bit</span></div></div></div>
+
+          {/* Linha Divisória */}
+          <div className="h-px w-full bg-gradient-to-r from-transparent via-neutral-800 to-transparent mb-12"></div>
+
+          {/* Footer Inferior: Pagamento e Segurança */}
+          <div className="flex flex-col md:flex-row justify-between items-center gap-8 mb-12">
+            
+            {/* Pagamento Seguro */}
+            <div className="flex flex-col items-center md:items-start gap-4">
+              <span className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Formas de Pagamento</span>
+              <div className="flex gap-2 flex-wrap justify-center">
+                <div className="w-12 h-8 bg-neutral-950 border border-neutral-800 rounded flex items-center justify-center hover:border-purple-500 transition-colors"><img src="https://cdn.simpleicons.org/pix/32BCAD" alt="Pix" className="h-4" /></div>
+                <div className="px-3 h-8 bg-neutral-950 border border-neutral-800 rounded flex items-center justify-center gap-1 text-white hover:border-purple-500 transition-colors"><Barcode size={14} /><span className="text-[9px] font-black uppercase tracking-widest">Boleto</span></div>
+                <div className="w-12 h-8 bg-neutral-950 border border-neutral-800 rounded flex items-center justify-center hover:border-purple-500 transition-colors"><img src="https://cdn.simpleicons.org/visa/white" alt="Visa" className="h-3" /></div>
+                <div className="w-12 h-8 bg-neutral-950 border border-neutral-800 rounded flex items-center justify-center hover:border-purple-500 transition-colors"><img src="https://cdn.simpleicons.org/mastercard" alt="Mastercard" className="h-4" /></div>
+              </div>
+            </div>
+
+            {/* Segurança e Criptografia */}
+            <div className="flex flex-col items-center md:items-end gap-4">
+              <span className="text-gray-500 text-[10px] font-black uppercase tracking-widest">Segurança e Criptografia</span>
+              <div className="flex gap-3 flex-wrap justify-center">
+                <div className="flex items-center gap-2 text-gray-300 bg-neutral-950 h-8 px-3 rounded border border-neutral-800">
+                  <ShieldCheck size={14} className="text-green-500" />
+                  <span className="text-[9px] font-black uppercase tracking-widest">Site Blindado</span>
+                </div>
+                <div className="flex items-center gap-2 text-gray-300 bg-neutral-950 h-8 px-3 rounded border border-neutral-800">
+                  <Lock size={14} className="text-purple-500" />
+                  <span className="text-[9px] font-black uppercase tracking-widest">SSL 256-Bit</span>
+                </div>
+              </div>
+            </div>
           </div>
-          <div className="border-t border-neutral-900 pt-8 flex justify-between items-center text-gray-700 text-[10px] font-bold uppercase tracking-widest"><span>© 2026 GROOVE NATION.</span><button onClick={() => handleNavClick('admin')} className="hover:text-purple-500 transition-colors"><Lock size={14} /></button></div>
+
+          {/* Copyright e Admin */}
+          <div className="border-t border-neutral-900 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-center">
+            <p className="text-gray-600 text-[9px] font-black uppercase tracking-widest">
+              © {new Date().getFullYear()} GROOVE NATION. TODOS OS DIREITOS RESERVADOS.
+            </p>
+            <button 
+              onClick={() => { handleNavClick('admin'); window.scrollTo(0, 0); }} 
+              className="text-gray-600 hover:text-purple-500 transition-colors text-[9px] font-black uppercase tracking-widest flex items-center gap-1"
+            >
+              <Lock size={10} /> Painel Administrativo
+            </button>
+          </div>
         </div>
       </footer>
 
-      <div className="fixed bottom-6 right-6 z-50"><a href="https://wa.me/5516988265500" target="_blank" rel="noopener noreferrer" className="bg-[#25D366] text-white p-4 rounded-full shadow-[0_0_20px_rgba(37,211,102,0.3)] hover:scale-110 transition-transform flex items-center justify-center"><MessageCircle size={28} fill="white" /></a></div>
+      {/* ================================================= */}
+      {/* BOTÃO FLUTUANTE DO WHATSAPP (COM BALÃO DE AJUDA)  */}
+      {/* ================================================= */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3">
+        {/* Balão "Precisa de Ajuda?" */}
+        <div className="relative bg-neutral-900 border border-neutral-800 text-white text-[10px] font-black uppercase tracking-widest px-4 py-2.5 rounded-lg shadow-2xl animate-bounce">
+          Precisa de ajuda?
+          {/* Triângulo do balão */}
+          <div className="absolute -bottom-1.5 right-6 w-3 h-3 bg-neutral-900 border-b border-r border-neutral-800 transform rotate-45"></div>
+        </div>
+
+        {/* Botão com SVG Oficial do WhatsApp */}
+        <a 
+          href="https://wa.me/5516988265500" 
+          target="_blank" 
+          rel="noopener noreferrer" 
+          className="bg-[#25D366] text-white p-4 rounded-full shadow-[0_0_20px_rgba(37,211,102,0.3)] hover:scale-110 transition-transform flex items-center justify-center"
+        >
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/>
+          </svg>
+        </a>
+      </div>
     </div>
   );
 };
