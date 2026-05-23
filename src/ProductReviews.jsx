@@ -10,13 +10,14 @@ export default function ProductReviews({ productId }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // 1. BUSCAR AVALIAÇÕES NO FIREBASE EM TEMPO REAL
+  // 1. BUSCAR AVALIAÇÕES NO FIREBASE EM TEMPO REAL
   useEffect(() => {
     if (!productId) return;
 
+    // Removemos temporariamente o orderBy para testar se é falta de índice
     const q = query(
       collection(db, 'avaliacoes'),
-      where('productId', '==', productId),
-      orderBy('createdAt', 'desc')
+      where('productId', '==', productId)
     );
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -24,12 +25,21 @@ export default function ProductReviews({ productId }) {
         id: doc.id,
         ...doc.data()
       }));
-      setReviews(fetchedReviews);
+
+      // Ordenamos manualmente via JavaScript para evitar erros de índice do Firebase
+      const sortedReviews = fetchedReviews.sort((a, b) => {
+        const dateA = a.createdAt?.toDate() || new Date();
+        const dateB = b.createdAt?.toDate() || new Date();
+        return dateB - dateA; // Mais recentes primeiro
+      });
+
+      setReviews(sortedReviews);
+    }, (error) => {
+      console.error("Erro no Snapshot de avaliações:", error);
     });
 
     return () => unsubscribe();
   }, [productId]);
-
   // 2. SALVAR NOVA AVALIAÇÃO NO FIREBASE
   const handleSubmitReview = async (e) => {
     e.preventDefault();
