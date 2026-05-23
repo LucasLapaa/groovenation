@@ -849,7 +849,9 @@ const HomeView = ({ currentView, setCurrentView, onAddToCart }) => {
       <SpinAndWin />
       {/* ⭐ SEÇÃO DE AVALIAÇÕES (Isolada com espaçamento perfeito) */}
       <section className="py-12 bg-neutral-950 border-t border-neutral-900">
-        <ProductReviews />
+       <div className="max-w-7xl mx-auto px-4"> {/* 👇 Essa div faz a mágica do alinhamento */}
+          <ProductReviews productId="loja-geral" />
+        </div>
       </section>
       <section className="py-24 bg-neutral-950 border-t border-neutral-900">
         

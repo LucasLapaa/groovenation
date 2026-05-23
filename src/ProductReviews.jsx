@@ -1,224 +1,164 @@
-import React, { useState } from 'react';
-import { Star, Camera, MessageSquare, CheckCircle2, Image as ImageIcon } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import React, { useState, useEffect } from 'react';
+import { Star, Send, User } from 'lucide-react';
+import { collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { db } from './firebase'; // Confirme se o caminho do seu firebase.js está correto
+import toast from 'react-hot-toast';
 
-const ProductReviews = () => {
-  const [rating, setRating] = useState(5);
-  const [hoverRating, setHoverRating] = useState(0);
-  const [comment, setComment] = useState('');
-  const [photoPreview, setPhotoPreview] = useState(null);
+export default function ProductReviews({ productId }) {
+  const [reviews, setReviews] = useState([]);
+  const [newReview, setNewReview] = useState({ name: '', comment: '', rating: 5 });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showSuccess, setShowSuccess] = useState(false);
 
-  // Mock de avaliações (Prova Social inicial)
-  const [reviews, setReviews] = useState([
-    {
-      id: 1,
-      name: "Marcos V.",
-      date: "Há 2 dias",
-      rating: 5,
-      text: "Tecido absurdo! Caimento perfeito pra quem treina pesado. A estética old school é real, virou minha farda de treino.",
-      photo: "https://images.unsplash.com/photo-1581009146145-b5ef050c2e1e?q=80&w=200&auto=format&fit=crop",
-      verified: true
-    },
-    {
-      id: 2,
-      name: "Rafael T.",
-      date: "Há 1 semana",
-      rating: 5,
-      text: "Comprei a oversized dark e a qualidade superou as expectativas. Pode amassar no treino que a peça aguenta.",
-      photo: null,
-      verified: true
+  // 1. BUSCAR AVALIAÇÕES NO FIREBASE EM TEMPO REAL
+  useEffect(() => {
+    if (!productId) return;
+
+    const q = query(
+      collection(db, 'avaliacoes'),
+      where('productId', '==', productId),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const fetchedReviews = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setReviews(fetchedReviews);
+    });
+
+    return () => unsubscribe();
+  }, [productId]);
+
+  // 2. SALVAR NOVA AVALIAÇÃO NO FIREBASE
+  const handleSubmitReview = async (e) => {
+    e.preventDefault();
+    if (!newReview.name || !newReview.comment) {
+      toast.error('Preencha seu nome e o comentário!');
+      return;
     }
-  ]);
 
-  const handlePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setPhotoPreview(url);
+    setIsSubmitting(true);
+    try {
+      await addDoc(collection(db, 'avaliacoes'), {
+        productId: productId,
+        name: newReview.name,
+        comment: newReview.comment,
+        rating: newReview.rating,
+        createdAt: serverTimestamp(),
+      });
+
+      toast.success('Avaliação enviada com sucesso!');
+      setNewReview({ name: '', comment: '', rating: 5 }); // Limpa o formulário
+    } catch (error) {
+      console.error("Erro ao salvar avaliação:", error);
+      toast.error('Erro ao enviar avaliação. Tente novamente.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  const handleSubmitReview = (e) => {
-    e.preventDefault();
-    if (!comment.trim()) return;
-    
-    setIsSubmitting(true);
-    
-    // Simula o tempo de envio para o banco de dados
-    setTimeout(() => {
-      const newReview = {
-        id: Date.now(),
-        name: "Você",
-        date: "Agora mesmo",
-        rating: rating,
-        text: comment,
-        photo: photoPreview,
-        verified: true
-      };
-      
-      setReviews([newReview, ...reviews]);
-      setComment('');
-      setPhotoPreview(null);
-      setRating(5);
-      setIsSubmitting(false);
-      setShowSuccess(true);
-      
-      setTimeout(() => setShowSuccess(false), 3000);
-    }, 1000);
+  // Função para formatar a data do Firebase
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'Agora mesmo';
+    const date = timestamp.toDate();
+    return new Intl.DateTimeFormat('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' }).format(date);
   };
 
   return (
-    <div className="w-full max-w-4xl mx-auto py-12 px-4 border-t border-neutral-800 mt-12">
-      
-      {/* CABEÇALHO DA SEÇÃO */}
-      <div className="flex items-center gap-3 mb-10">
-        <MessageSquare className="text-purple-500" size={28} />
-        <h2 className="text-3xl font-black text-white italic tracking-widest uppercase">
-          Avaliações da Tropa
-        </h2>
-      </div>
+    <div className="w-full">
+      <h3 className="text-lg font-black text-white uppercase tracking-widest mb-8 flex items-center gap-2">
+        Avaliações da Galera <span className="text-purple-500 text-sm">({reviews.length})</span>
+      </h3>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
         
-        {/* LADO ESQUERDO: FORMULÁRIO DE AVALIAÇÃO */}
-        <div className="md:col-span-1 bg-neutral-900/50 p-6 rounded-lg border border-neutral-800 h-fit">
-          <h3 className="text-white font-bold uppercase tracking-widest text-sm mb-4">Deixe seu Review</h3>
-          
-          <AnimatePresence mode="wait">
-            {showSuccess ? (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0 }}
-                className="bg-green-500/10 border border-green-500/30 p-6 rounded text-center flex flex-col items-center gap-2"
-              >
-                <CheckCircle2 className="text-green-500" size={32} />
-                <p className="text-green-500 font-bold uppercase tracking-widest text-xs">Avaliação enviada!</p>
-              </motion.div>
-            ) : (
-              <motion.form 
-                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-                onSubmit={handleSubmitReview} className="flex flex-col gap-4"
-              >
-                
-                {/* SELETOR DE ESTRELAS */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Nota</label>
+        {/* LADO ESQUERDO: LISTA DE AVALIAÇÕES */}
+        <div className="space-y-6 max-h-[500px] overflow-y-auto pr-4 custom-scrollbar">
+          {reviews.length === 0 ? (
+            <p className="text-gray-500 text-sm italic border border-neutral-800 border-dashed p-6 rounded-lg text-center">
+              Seja o primeiro a avaliar esta peça.
+            </p>
+          ) : (
+            reviews.map((review) => (
+              <div key={review.id} className="bg-neutral-900 border border-neutral-800 p-5 rounded-lg">
+                <div className="flex justify-between items-start mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-neutral-950 border border-neutral-800 flex items-center justify-center">
+                      <User size={14} className="text-gray-400" />
+                    </div>
+                    <div>
+                      <p className="text-white text-xs font-bold uppercase tracking-widest">{review.name}</p>
+                      <p className="text-gray-500 text-[10px]">{formatDate(review.createdAt)}</p>
+                    </div>
+                  </div>
                   <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((star) => (
-                      <button
-                        key={star}
-                        type="button"
-                        onClick={() => setRating(star)}
-                        onMouseEnter={() => setHoverRating(star)}
-                        onMouseLeave={() => setHoverRating(0)}
-                        className="transition-all focus:outline-none"
-                      >
-                        <Star 
-                          size={24} 
-                          className={(hoverRating || rating) >= star ? "fill-yellow-500 text-yellow-500" : "text-neutral-700"} 
-                        />
-                      </button>
+                    {[...Array(5)].map((_, i) => (
+                      <Star key={i} size={12} className={i < review.rating ? "text-purple-500 fill-purple-500" : "text-neutral-700"} />
                     ))}
                   </div>
                 </div>
-
-                {/* CAMPO DE TEXTO */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Comentário</label>
-                  <textarea 
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Como ficou o caimento da peça?"
-                    className="w-full bg-black border border-neutral-800 rounded p-3 text-sm text-white focus:border-purple-500 outline-none transition-colors resize-none h-24"
-                    required
-                  />
-                </div>
-
-                {/* UPLOAD DE FOTO */}
-                <div className="flex flex-col gap-2">
-                  <label className="text-gray-400 text-[10px] font-bold uppercase tracking-widest">Foto do Shape (Opcional)</label>
-                  
-                  {!photoPreview ? (
-                    <label className="w-full border border-dashed border-neutral-700 hover:border-purple-500 bg-black p-4 rounded flex flex-col items-center justify-center gap-2 cursor-pointer transition-colors group">
-                      <Camera size={20} className="text-gray-500 group-hover:text-purple-400 transition-colors" />
-                      <span className="text-[10px] text-gray-500 uppercase tracking-widest font-bold">Adicionar Imagem</span>
-                      <input type="file" accept="image/*" onChange={handlePhotoUpload} className="hidden" />
-                    </label>
-                  ) : (
-                    <div className="relative w-full h-32 rounded border border-neutral-700 overflow-hidden group">
-                      <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-                      <button 
-                        type="button" 
-                        onClick={() => setPhotoPreview(null)}
-                        className="absolute inset-0 bg-black/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      >
-                        <span className="text-white text-xs uppercase tracking-widest font-bold">Remover</span>
-                      </button>
-                    </div>
-                  )}
-                </div>
-
-                {/* BOTÃO ENVIAR */}
-                <button 
-                  type="submit" 
-                  disabled={isSubmitting || !comment.trim()}
-                  className="w-full bg-white hover:bg-gray-200 disabled:opacity-50 text-black transition-all font-black py-3 rounded tracking-widest uppercase text-xs mt-2"
-                >
-                  {isSubmitting ? 'Enviando...' : 'Publicar Avaliação'}
-                </button>
-              </motion.form>
-            )}
-          </AnimatePresence>
-        </div>
-
-        {/* LADO DIREITO: LISTA DE AVALIAÇÕES */}
-        <div className="md:col-span-2 flex flex-col gap-6">
-          {reviews.map((review) => (
-            <motion.div 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              key={review.id} 
-              className="bg-black p-6 rounded-lg border border-neutral-800 flex flex-col gap-4"
-            >
-              <div className="flex justify-between items-start">
-                <div className="flex flex-col gap-1">
-                  <div className="flex items-center gap-2">
-                    <span className="font-black text-white uppercase tracking-widest">{review.name}</span>
-                    {review.verified && (
-                      <span className="bg-green-500/10 text-green-500 text-[9px] px-2 py-0.5 rounded font-bold uppercase tracking-widest border border-green-500/20">
-                        Compra Verificada
-                      </span>
-                    )}
-                  </div>
-                  <span className="text-gray-500 text-[10px] uppercase tracking-widest">{review.date}</span>
-                </div>
-                
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star key={star} size={14} className={review.rating >= star ? "fill-yellow-500 text-yellow-500" : "text-neutral-800"} />
-                  ))}
-                </div>
+                <p className="text-gray-400 text-sm leading-relaxed">{review.comment}</p>
               </div>
-
-              <p className="text-gray-300 text-sm leading-relaxed">
-                {review.text}
-              </p>
-
-              {review.photo && (
-                <div className="mt-2">
-                  <div className="w-24 h-24 rounded border border-neutral-700 overflow-hidden cursor-pointer hover:border-purple-500 transition-colors">
-                    <img src={review.photo} alt="Review do cliente" className="w-full h-full object-cover" />
-                  </div>
-                </div>
-              )}
-            </motion.div>
-          ))}
+            ))
+          )}
         </div>
-        
+
+        {/* LADO DIREITO: FORMULÁRIO DE AVALIAÇÃO */}
+        <div className="bg-neutral-950 border border-neutral-800 p-6 rounded-lg h-fit sticky top-24">
+          <h4 className="text-white text-xs font-black uppercase tracking-widest mb-6">Deixe sua avaliação</h4>
+          
+          <form onSubmit={handleSubmitReview} className="space-y-4">
+            {/* Selecionador de Estrelas */}
+            <div className="flex items-center gap-2 mb-4">
+              <span className="text-gray-500 text-xs uppercase tracking-widest font-bold">Nota:</span>
+              <div className="flex gap-1 cursor-pointer">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <Star 
+                    key={star} 
+                    size={20} 
+                    onClick={() => setNewReview({ ...newReview, rating: star })}
+                    className={`transition-colors ${star <= newReview.rating ? "text-purple-500 fill-purple-500" : "text-neutral-700 hover:text-purple-400"}`} 
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <input 
+                type="text" 
+                placeholder="SEU NOME" 
+                value={newReview.name}
+                onChange={(e) => setNewReview({ ...newReview, name: e.target.value })}
+                className="w-full bg-neutral-900 border border-neutral-800 text-white rounded px-4 py-3 text-xs uppercase tracking-widest focus:outline-none focus:border-purple-500 transition-colors"
+                required
+              />
+            </div>
+            
+            <div>
+              <textarea 
+                placeholder="O QUE ACHOU DA PEÇA? O CAIMENTO É BOM?" 
+                value={newReview.comment}
+                onChange={(e) => setNewReview({ ...newReview, comment: e.target.value })}
+                rows="4"
+                className="w-full bg-neutral-900 border border-neutral-800 text-white rounded px-4 py-3 text-sm focus:outline-none focus:border-purple-500 transition-colors resize-none"
+                required
+              />
+            </div>
+
+            <button 
+              type="submit" 
+              disabled={isSubmitting}
+              className="w-full bg-purple-600 hover:bg-purple-500 text-white font-black py-3 rounded text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+            >
+              {isSubmitting ? 'Enviando...' : (
+                <>Publicar Avaliação <Send size={14} /></>
+              )}
+            </button>
+          </form>
+        </div>
+
       </div>
     </div>
   );
-};
-
-export default ProductReviews;
+}
